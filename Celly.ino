@@ -497,8 +497,10 @@ void processSensorLight() {
 			for (int i = 0; i < SENSOR_LIGHT_COUNT; i++)
 				avg += (float) sensorLight.raw[i] / SENSOR_LIGHT_COUNT;
 
-			if (SENSOR_LIGHT_LOG)
+			if (SENSOR_LIGHT_LOG) {
+				avg += 1;
 				avg = log(avg);
+			}
 
 	        int result;
 	        varipassWriteFloat(VARIPASS_KEY, VARIPASS_ID_LIGHT, avg, &result);

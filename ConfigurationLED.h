@@ -15,7 +15,7 @@
 #define LED_LOW_ENABLE true
 
 /* The color to use for the low light mode. */
-RGB ledLowColor {1, 1, 1};
+RGB ledLowColor {0, 0, 0};
 
 
 
