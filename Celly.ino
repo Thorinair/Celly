@@ -4,6 +4,8 @@
 #include <SFE_BMP180.h>
 #include <Adafruit_SGP30.h>
 #include <SparkFun_APDS9960.h>
+#include <Adafruit_Sensor.h>
+#include <DPEng_ICM20948_AK09916.h>
 
 #include "ESP8266WiFi.h"
 #include <EEPROM.h>
@@ -18,6 +20,7 @@
 #include "ConfigurationVariPass.h"
 #include "ConfigurationLuna.h"
 
+#define max(a,b) ((a)>(b)?(a):(b))
 
 #define PIN_PIXEL       13
 #define PIN_BUTTON_UP   12
@@ -34,6 +37,11 @@
 #define EEPROM_BASE_ENABLED 10
 #define EEPROM_BASE_CO2     11
 #define EEPROM_BASE_VOC     13
+
+#define EEPROM_ORI_ENABLED 20
+#define EEPROM_ORI_X       21
+#define EEPROM_ORI_Y       22
+#define EEPROM_ORI_Z       23
 
 /* LEDs */
 Adafruit_NeoPixel strip = Adafruit_NeoPixel(2, PIN_PIXEL, NEO_GRB + NEO_KHZ800);
@@ -100,6 +108,32 @@ struct SensorLight {
 	int count = 0;
 } sensorLight;
 
+DPEng_ICM20948 icm = DPEng_ICM20948(0x948A, 0x948B, 0x948C);
+
+struct SensorICM {
+	bool available = false;
+	bool oriEnabled = false;
+	char oriX = 'X';
+	char oriY = 'Y';
+	char oriZ = 'Z';
+} sensorICM;
+
+struct SensorMagnetic {
+	float calcMag[SENSOR_MAGNETIC_COUNT] = {0};
+	float calcInc[SENSOR_MAGNETIC_COUNT] = {0};
+	float rawX = 0;
+	float rawY = 0;
+	float rawZ = 0;
+	float newX = 0;
+	float newY = 0;
+	float newZ = 0;
+	int sample = 0;
+	int count = 0;
+} sensorMagnetic;
+
+
+
+
 /* Buttons */
 
 struct ButtonUp {
@@ -128,6 +162,7 @@ void setupSensor_sht();
 void setupSensor_bmp();
 void setupSensor_sgp();
 void setupSensor_apd();
+void setupSensor_icm();
 
 void processLEDPower();
 
@@ -143,12 +178,18 @@ void processButtonUp();
 void processButtonDown();
 void processButtonBoth();
 
+float heading(sensors_event_t * m, sensors_event_t * a, Vector * o);
+void vectorCross(Vector * a, Vector * b, Vector * out);
+void vectorNormalize(Vector * a);
+float vectorDot(Vector * a, Vector * b);
 void calculateIntensity(uint16_t light);
 uint32_t getAbsoluteHumidity(float temperature, float humidity);
-void ledNotifPulse(int pulse, struct RGB * color);
+void ledNotifPulse(int pulse, RGB * color);
 int openURL(String url);
 void eepromWriteUInt16(int pos, uint16_t val);
 uint16_t eepromReadUInt16(int pos);
+float maxFour(float a, float b, float c, float d);
+float maxSix(float a, float b, float c, float d, float e, float f);
 
 
 
@@ -178,6 +219,7 @@ void setupSensors() {
 	setupSensor_bmp();
 	setupSensor_sgp();
 	setupSensor_apd();
+	setupSensor_icm();
 }
 
 void setupSensor_sht() {
@@ -229,6 +271,26 @@ void setupSensor_apd() {
     else
 		ledNotifPulse(PULSE_ERRO, &ledSensorAPD);
     
+}
+
+void setupSensor_icm() {
+	if(icm.begin(SENSOR_VIBRATION_RANGE, GYRO_RANGE_250DPS)) {
+    	EEPROM.begin(512);
+    	sensorICM.oriEnabled = EEPROM.read(EEPROM_ORI_ENABLED);
+    	EEPROM.end();
+
+    	if (sensorICM.oriEnabled) {
+    		EEPROM.begin(512);
+    		sensorICM.oriX = (char) EEPROM.read(EEPROM_ORI_X);
+    		sensorICM.oriY = (char) EEPROM.read(EEPROM_ORI_Y);
+    		sensorICM.oriZ = (char) EEPROM.read(EEPROM_ORI_Z);
+    		EEPROM.end();
+    	}
+
+		sensorICM.available = true;
+	}
+	else
+		ledNotifPulse(PULSE_ERRO, &ledSensorICMMag);
 }
 
 
@@ -562,23 +624,47 @@ void processButtons() {
 
 
     if (buttonDown.pressed) {
-    	if (buttonDown.counter >= BUTTON_HOLD_TIME) {
-    		buttonDown.counter = -1;
+    	if (sensorAir.available) {
+	    	if (buttonDown.counter >= BUTTON_HOLD_TIME) {
+	    		buttonDown.counter = -1;
 
-    		processButtonDown();
+	    		processButtonDown();
 
-	        ledNotifPulse(PULSE_BUTT, &ledButtonDown);
-    	}
-    	else if (buttonDown.counter >= 0) {
-    		buttonDown.counter++;
-    		float fade = 0;
-    		if (sensorAir.baseEnabled)
-    			fade = LED_BUTTON_FADE_MIN + (LED_BUTTON_FADE_MAX - LED_BUTTON_FADE_MIN) * ((float)(BUTTON_HOLD_TIME - buttonDown.counter) / BUTTON_HOLD_TIME);
-    		else
-    			fade = LED_BUTTON_FADE_MIN + (LED_BUTTON_FADE_MAX - LED_BUTTON_FADE_MIN) * ((float)buttonDown.counter / BUTTON_HOLD_TIME);
-		    strip.setPixelColor(1, strip.Color(ledButtonDown.r * fade, ledButtonDown.g * fade, ledButtonDown.b * fade));
-		    strip.show();
-    	}
+		        ledNotifPulse(PULSE_BUTT, &ledButtonDown);
+	    	}
+	    	else if (buttonDown.counter >= 0) {
+	    		buttonDown.counter++;
+	    		float fade = 0;
+	    		if (sensorAir.baseEnabled)
+	    			fade = LED_BUTTON_FADE_MIN + (LED_BUTTON_FADE_MAX - LED_BUTTON_FADE_MIN) * ((float)(BUTTON_HOLD_TIME - buttonDown.counter) / BUTTON_HOLD_TIME);
+	    		else
+	    			fade = LED_BUTTON_FADE_MIN + (LED_BUTTON_FADE_MAX - LED_BUTTON_FADE_MIN) * ((float)buttonDown.counter / BUTTON_HOLD_TIME);
+			    strip.setPixelColor(1, strip.Color(ledButtonDown.r * fade, ledButtonDown.g * fade, ledButtonDown.b * fade));
+			    strip.show();
+	    	}
+	    }
+    }    
+
+    if (buttonUp.pressed) {
+    	if (sensorICM.available) {
+	    	if (buttonUp.counter >= BUTTON_HOLD_TIME) {
+	    		buttonUp.counter = -1;
+
+	    		processButtonUp();
+
+		        ledNotifPulse(PULSE_BUTT, &ledButtonUp);
+	    	}
+	    	else if (buttonUp.counter >= 0) {
+	    		buttonUp.counter++;
+	    		float fade = 0;
+	    		if (sensorICM.oriEnabled)
+	    			fade = LED_BUTTON_FADE_MIN + (LED_BUTTON_FADE_MAX - LED_BUTTON_FADE_MIN) * ((float)(BUTTON_HOLD_TIME - buttonUp.counter) / BUTTON_HOLD_TIME);
+	    		else
+	    			fade = LED_BUTTON_FADE_MIN + (LED_BUTTON_FADE_MAX - LED_BUTTON_FADE_MIN) * ((float)buttonUp.counter / BUTTON_HOLD_TIME);
+			    strip.setPixelColor(1, strip.Color(ledButtonUp.r * fade, ledButtonUp.g * fade, ledButtonUp.b * fade));
+			    strip.show();
+	    	}
+	    }
     }
 
     else if (buttonBoth.pressed) {
@@ -597,6 +683,180 @@ void processButtons() {
     	}
     }
 
+}
+
+void processButtonUp() {
+	if (sensorICM.oriEnabled) {
+		sensorICM.oriEnabled = false;
+    	EEPROM.begin(512);
+    	EEPROM.write(EEPROM_ORI_ENABLED, sensorICM.oriEnabled);
+    	EEPROM.commit();
+    	EEPROM.end();
+	}
+	else {
+		sensorICM.oriEnabled = true;
+
+		sensors_event_t aevent, gevent, mevent;
+		icm.getEvent(&aevent, &gevent, &mevent);
+
+		float acc_X = -aevent.acceleration.x; //  X
+		float acc_Y = -aevent.acceleration.y; //  Y
+		float acc_Z = -aevent.acceleration.z; //  Z
+
+		float acc_x =  aevent.acceleration.x; // -X
+		float acc_y =  aevent.acceleration.y; // -Y
+		float acc_z =  aevent.acceleration.z; // -Z
+
+		float accMax = maxSix(acc_X, acc_Y, acc_Z, acc_x, acc_y, acc_z);
+		float angle = 0.0;
+
+		if (accMax == acc_X) {
+			sensorICM.oriZ = 'x';
+
+    		Vector orient {0, 0, 1};
+			angle = 360 - heading(&mevent, &aevent, &orient);
+
+			if (angle >= 315 || angle < 45) {
+				sensorICM.oriY = 'z';
+				sensorICM.oriX = 'Y';
+			}
+			else if (angle >= 45 && angle < 135) {
+				sensorICM.oriY = 'y';
+				sensorICM.oriX = 'z';
+			}
+			else if (angle >= 135 && angle < 225) {
+				sensorICM.oriY = 'Z';
+				sensorICM.oriX = 'y';
+			}
+			else if (angle >= 135 || angle < -135) {
+				sensorICM.oriY = 'Y';
+				sensorICM.oriX = 'Z';
+			}
+		}
+		else if (accMax == acc_Y) {
+			sensorICM.oriZ = 'y';
+
+    		Vector orient {0, 0, 1};
+			angle = heading(&mevent, &aevent, &orient);
+
+			if (angle >= 315 || angle < 45) {
+				sensorICM.oriY = 'z';
+				sensorICM.oriX = 'x';
+			}
+			else if (angle >= 45 && angle < 135) {
+				sensorICM.oriY = 'X';
+				sensorICM.oriX = 'z';
+			}
+			else if (angle >= 135 && angle < 225) {
+				sensorICM.oriY = 'Z';
+				sensorICM.oriX = 'X';
+			}
+			else if (angle >= 135 || angle < -135) {
+				sensorICM.oriY = 'x';
+				sensorICM.oriX = 'Z';
+			}
+		}
+		else if (accMax == acc_Z) {
+			sensorICM.oriZ = 'z';
+
+    		Vector orient {0, -1, 0};
+			angle = heading(&mevent, &aevent, &orient);
+			
+			if (angle >= 315 || angle < 45) {
+				sensorICM.oriY = 'Y';
+				sensorICM.oriX = 'x';
+			}
+			else if (angle >= 45 && angle < 135) {
+				sensorICM.oriY = 'X';
+				sensorICM.oriX = 'Y';
+			}
+			else if (angle >= 135 && angle < 225) {
+				sensorICM.oriY = 'y';
+				sensorICM.oriX = 'X';
+			}
+			else if (angle >= 135 || angle < -135) {
+				sensorICM.oriY = 'x';
+				sensorICM.oriX = 'y';
+			}
+		}
+		else if (accMax == acc_x) {
+			sensorICM.oriZ = 'X';
+
+    		Vector orient {0, 0, 1};
+			angle = 360 - heading(&mevent, &aevent, &orient);
+
+			if (angle >= 315 || angle < 45) {
+				sensorICM.oriY = 'z';
+				sensorICM.oriX = 'y';
+			}
+			else if (angle >= 45 && angle < 135) {
+				sensorICM.oriY = 'Y';
+				sensorICM.oriX = 'z';
+			}
+			else if (angle >= 135 && angle < 225) {
+				sensorICM.oriY = 'Z';
+				sensorICM.oriX = 'Y';
+			}
+			else if (angle >= 135 || angle < -135) {
+				sensorICM.oriY = 'y';
+				sensorICM.oriX = 'Z';
+			}
+		}
+		else if (accMax == acc_y) {
+			sensorICM.oriZ = 'Y';
+
+    		Vector orient {0, 0, 1};
+			angle = heading(&mevent, &aevent, &orient);
+
+			if (angle >= 315 || angle < 45) {
+				sensorICM.oriY = 'z';
+				sensorICM.oriX = 'X';
+			}
+			else if (angle >= 45 && angle < 135) {
+				sensorICM.oriY = 'x';
+				sensorICM.oriX = 'z';
+			}
+			else if (angle >= 135 && angle < 225) {
+				sensorICM.oriY = 'Z';
+				sensorICM.oriX = 'x';
+			}
+			else if (angle >= 135 || angle < -135) {
+				sensorICM.oriY = 'X';
+				sensorICM.oriX = 'Z';
+			}
+		}
+		else if (accMax == acc_z) {
+			sensorICM.oriZ = 'Z';
+
+    		Vector orient {0, -1, 0};
+			angle = heading(&mevent, &aevent, &orient);
+
+			if (angle >= 315 || angle < 45) {
+				sensorICM.oriY = 'Y';
+				sensorICM.oriX = 'X';
+			}
+			else if (angle >= 45 && angle < 135) {
+				sensorICM.oriY = 'x';
+				sensorICM.oriX = 'Y';
+			}
+			else if (angle >= 135 && angle < 225) {
+				sensorICM.oriY = 'y';
+				sensorICM.oriX = 'x';
+			}
+			else if (angle >= 135 || angle < -135) {
+				sensorICM.oriY = 'X';
+				sensorICM.oriX = 'y';
+			}
+		}
+
+    	EEPROM.begin(512);
+    	EEPROM.write(EEPROM_ORI_ENABLED, sensorICM.oriEnabled);
+    	EEPROM.write(EEPROM_ORI_X, sensorICM.oriX);
+    	EEPROM.write(EEPROM_ORI_Y, sensorICM.oriY);
+    	EEPROM.write(EEPROM_ORI_Z, sensorICM.oriZ);
+    	EEPROM.commit();
+    	EEPROM.end();
+	}
 }
 
 void processButtonDown() {
@@ -634,17 +894,52 @@ void processButtonBoth() {
     url += "&key=" + String(LUNA_KEY);
     url += "&temperature_raw=" + String(sensorTemperature.last);
     url += "&humidity_raw=" + String(sensorHumidity.last);
-    url += "&pressure_raw=" + String(sensorPressure.last);
-    url += "&co2_raw=" + String(sensorAir.lastCO2);
-    url += "&voc_raw=" + String(sensorAir.lastVOC);
-    url += "&air_base_enabled=" + String(sensorAir.baseEnabled);
-    if (sensorAir.baseEnabled) {
-    	url += "&air_base_next=" + String(sensorAir.baseNext/1000);
-	    url += "&air_base_co2=0x" + String(sensorAir.baseCO2, HEX);
-	    url += "&air_base_voc=0x" + String(sensorAir.baseVOC, HEX);
+	if (sensorPressure.available) {
+	    url += "&pressure_raw=" + String(sensorPressure.last);
 	}
-    url += "&light_raw=" + String(sensorLight.last);
-    url += "&light_log=" + String(log(sensorLight.last));
+	if (sensorAir.available) {
+	    url += "&co2_raw=" + String(sensorAir.lastCO2);
+	    url += "&voc_raw=" + String(sensorAir.lastVOC);
+	    url += "&air_base_enabled=" + String(sensorAir.baseEnabled);
+	    if (sensorAir.baseEnabled) {
+	    	url += "&air_base_next=" + String(sensorAir.baseNext/1000);
+		    url += "&air_base_co2=0x" + String(sensorAir.baseCO2, HEX);
+		    url += "&air_base_voc=0x" + String(sensorAir.baseVOC, HEX);
+		}
+	}
+	if (sensorLight.available) {
+	    url += "&light_raw=" + String(sensorLight.last);
+	    url += "&light_log=" + String(log(sensorLight.last));
+	}
+	if (sensorICM.available) {
+	    url += "&icm_ori_enabled=" + String(sensorICM.oriEnabled);
+	    if (sensorICM.oriEnabled) {
+	    	if (sensorICM.oriX == 'x')
+	    		url += "&icm_ori_x=-X";
+	    	else if (sensorICM.oriX == 'y')
+	    		url += "&icm_ori_x=-Y";
+	    	else if (sensorICM.oriX == 'z')
+	    		url += "&icm_ori_x=-Z";
+	    	else
+	    		url += "&icm_ori_x=" + String(sensorICM.oriX);
+	    	if (sensorICM.oriY == 'x')
+	    		url += "&icm_ori_y=-X";
+	    	else if (sensorICM.oriY == 'y')
+	    		url += "&icm_ori_y=-Y";
+	    	else if (sensorICM.oriY == 'z')
+	    		url += "&icm_ori_y=-Z";
+	    	else
+	    		url += "&icm_ori_y=" + String(sensorICM.oriY);
+	    	if (sensorICM.oriZ == 'x')
+	    		url += "&icm_ori_z=-X";
+	    	else if (sensorICM.oriZ == 'y')
+	    		url += "&icm_ori_z=-Y";
+	    	else if (sensorICM.oriZ == 'z')
+	    		url += "&icm_ori_z=-Z";
+	    	else
+	    		url += "&icm_ori_z=" + String(sensorICM.oriZ);
+	    }
+	}
 
     openURL(url);
 }
@@ -652,6 +947,44 @@ void processButtonBoth() {
 
 
 
+float heading(sensors_event_t * m, sensors_event_t * a, Vector * o) {
+    Vector temp {m->magnetic.x, m->magnetic.y, m->magnetic.z};
+    Vector mag {m->magnetic.x, m->magnetic.y, m->magnetic.z};
+    Vector acc {a->acceleration.x, a->acceleration.y, a->acceleration.z};
+
+    temp.x -= (sensorMagneticMin.x + sensorMagneticMax.x) / 2;
+    temp.y -= (sensorMagneticMin.y + sensorMagneticMax.y) / 2;
+    temp.z -= (sensorMagneticMin.z + sensorMagneticMax.z) / 2;
+
+    Vector E;
+    Vector N;
+    vectorCross(&temp, &acc, &E);
+    vectorNormalize(&E);
+    vectorCross(&acc, &E, &N);
+    vectorNormalize(&N);
+
+    float head = atan2(vectorDot(&E, o), vectorDot(&N, o)) * 180 / PI;
+    if (head < 0)
+    	head += 360;
+    return 360 - head;
+}
+
+void vectorCross(Vector * a, Vector * b, Vector * out) {
+    out->x = (a->y * b->z) - (a->z * b->y);
+    out->y = (a->z * b->x) - (a->x * b->z);
+    out->z = (a->x * b->y) - (a->y * b->x);
+}
+
+void vectorNormalize(Vector * a) {
+    float mag = sqrt(vectorDot(a, a));
+    a->x /= mag;
+    a->y /= mag;
+    a->z /= mag;
+}
+
+float vectorDot(Vector * a, Vector * b) {
+    return (a->x * b->x) + (a->y * b->y) + (a->z * b->z);
+}
 
 void calculateIntensity(uint16_t light) {
 	if (light < LED_LIGHT_MIN) {
@@ -673,7 +1006,7 @@ uint32_t getAbsoluteHumidity(float temperature, float humidity) {
     return absoluteHumidityScaled;
 }
 
-void ledNotifPulse(int pulse, struct RGB * color) {
+void ledNotifPulse(int pulse, RGB * color) {
 	if (!buttonUp.pressed && !buttonDown.pressed && !buttonBoth.pressed) {
 		if (pulse == PULSE_DONE || pulse == PULSE_FAIL) {
 	        if (intensity == -1)
@@ -752,6 +1085,14 @@ uint16_t eepromReadUInt16(int pos) {
   *p       = EEPROM.read(pos);
   *(p + 1) = EEPROM.read(pos + 1);
   return val;
+}
+
+float maxSix(float a, float b, float c, float d, float e, float f) {
+	float m = max(a, b);
+	m = max(m, c);
+	m = max(m, d);
+	m = max(m, e);
+	return max(m, f);
 }
 
 
