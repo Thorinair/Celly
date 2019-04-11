@@ -61,14 +61,14 @@ SHT21 sht;
 struct SensorTemperature {
 	float raw[SENSOR_TEMPERATURE_COUNT] = {0};
 	float last = 0;
-	int sample = 0;
+	unsigned long sample = 0;
 	int count = 0;
 } sensorTemperature;
 
 struct SensorHumidity {
 	float raw[SENSOR_HUMIDITY_COUNT] = {0};
 	float last = 0;
-	int sample = 0;
+	unsigned long sample = 0;
 	int count = 0;
 } sensorHumidity;
 
@@ -78,7 +78,7 @@ struct SensorPressure {
 	bool available = false;
 	float raw[SENSOR_PRESSURE_COUNT] = {0};
 	float last = 0;
-	int sample = 0;
+	unsigned long sample = 0;
 	int count = 0;
 } sensorPressure;
 
@@ -94,7 +94,7 @@ struct SensorAir {
 	long baseNext = 0;
 	uint16_t baseCO2 = 0;
 	uint16_t baseVOC = 0;
-	int sample = 0;
+	unsigned long sample = 0;
 	int count = 0;
 } sensorAir;
 
@@ -104,7 +104,7 @@ struct SensorLight {
 	bool available = false;
 	uint16_t raw[SENSOR_LIGHT_COUNT] = {0};
 	uint16_t last = 0;
-	int sample = 0;
+	unsigned long sample = 0;
 	int count = 0;
 } sensorLight;
 
@@ -129,7 +129,7 @@ struct SensorMagnetic {
 	float oriX = 0;
 	float oriY = 0;
 	float oriZ = 0;
-	int sample = 0;
+	unsigned long sample = 0;
 	int count = 0;
 } sensorMagnetic;
 
@@ -243,7 +243,7 @@ void setupSensor_sgp() {
     	EEPROM.end();
 
     	if (sensorAir.baseEnabled) {
-			sensorAir.baseNext = SENSOR_AIR_BASE_COUNTDOWN * 1000;
+			sensorAir.baseNext = millis() + SENSOR_AIR_BASE_COUNTDOWN * 1000;
 
     		EEPROM.begin(512);
     		sensorAir.baseCO2 = eepromReadUInt16(EEPROM_BASE_CO2);
@@ -354,17 +354,14 @@ void processSensors() {
 }
 
 void processSensorTemperature() {
-	if (sensorTemperature.sample >= SENSOR_TEMPERATURE_SAMPLE - 1) {
-		sensorTemperature.sample = 0;
+	if (millis() >= sensorTemperature.sample + SENSOR_TEMPERATURE_SAMPLE) {
+		sensorTemperature.sample = millis();
 		float val = sht.getTemperature();
 		if (SENSOR_TEMPERATURE_DEBUG)
 			Serial.println("Temperature: " + String(val));
 		sensorTemperature.raw[sensorTemperature.count] = val;
 		sensorTemperature.last = val;
 		sensorTemperature.count++;
-	}
-	else {
-		sensorTemperature.sample++;
 	}
 
 	if (sensorTemperature.count >= SENSOR_TEMPERATURE_COUNT) {
@@ -384,17 +381,14 @@ void processSensorTemperature() {
 }
 
 void processSensorHumidity() {
-	if (sensorHumidity.sample >= SENSOR_HUMIDITY_SAMPLE - 1) {
-		sensorHumidity.sample = 0;
+	if (millis() >= sensorHumidity.sample + SENSOR_HUMIDITY_SAMPLE) {
+		sensorHumidity.sample = millis();
 		float val = sht.getHumidity();
 		if (SENSOR_HUMIDITY_DEBUG)
 			Serial.println("Humidity: " + String(val));
 		sensorHumidity.raw[sensorHumidity.count] = val;
 		sensorHumidity.last = val;
 		sensorHumidity.count++;
-	}
-	else {
-		sensorHumidity.sample++;
 	}
 
 	if (sensorHumidity.count >= SENSOR_HUMIDITY_COUNT) {
@@ -415,8 +409,8 @@ void processSensorHumidity() {
 
 void processSensorPressure() {
 	if (sensorPressure.available) {
-		if (sensorPressure.sample >= SENSOR_PRESSURE_SAMPLE - 1) {
-			sensorPressure.sample = 0;
+		if (millis() >= sensorPressure.sample + SENSOR_PRESSURE_SAMPLE) {
+			sensorPressure.sample = millis();
 
 	        char stat;
 	        double temp, pres,p0,a;  
@@ -441,9 +435,6 @@ void processSensorPressure() {
 	            }
 	        }
 		}
-		else {
-			sensorPressure.sample++;
-		}
 
 		if (sensorPressure.count >= SENSOR_PRESSURE_COUNT) {
 			sensorPressure.count = 0;
@@ -464,8 +455,8 @@ void processSensorPressure() {
 
 void processSensorAir() {
 	if (sensorAir.available) {
-		if (sensorAir.sample >= SENSOR_AIR_SAMPLE - 1) {
-			sensorAir.sample = 0;
+		if (millis() >= sensorAir.sample + SENSOR_AIR_SAMPLE) {
+			sensorAir.sample = millis();
 
 	        sgp.setHumidity(getAbsoluteHumidity(sensorTemperature.last, sensorHumidity.last));
 	        if (sgp.IAQmeasure()) {
@@ -484,9 +475,6 @@ void processSensorAir() {
 
 				sensorAir.count++;				
   			}
-		}
-		else {
-			sensorAir.sample++;
 		}
 
 		if (sensorAir.count >= SENSOR_AIR_COUNT) {
@@ -517,8 +505,8 @@ void processSensorAir() {
 		}
 
 		if (sensorAir.baseEnabled) {
-			if (sensorAir.baseNext <= 0) {
-				sensorAir.baseNext = SENSOR_AIR_BASE_COUNTDOWN * 1000;
+			if (millis() >= sensorAir.baseNext) {
+				sensorAir.baseNext = millis() + SENSOR_AIR_BASE_COUNTDOWN * 1000;
 
     			if (sgp.getIAQBaseline(&sensorAir.baseCO2, &sensorAir.baseVOC)) {
 		    		EEPROM.begin(512);
@@ -531,17 +519,14 @@ void processSensorAir() {
 					ledNotifPulse(PULSE_ERRO, &ledSensorSGP);
     			}
 			}
-			else {
-				sensorAir.baseNext--;
-			}
 		}
 	}
 }
 
 void processSensorLight() {
 	if (sensorLight.available) {
-		if (sensorLight.sample >= SENSOR_LIGHT_SAMPLE - 1) {
-			sensorLight.sample = 0;
+		if (millis() >= sensorLight.sample + SENSOR_LIGHT_SAMPLE) {
+			sensorLight.sample = millis();
 
 			uint16_t val = 0;
 	        if (apd.readAmbientLight(val)) {
@@ -552,9 +537,6 @@ void processSensorLight() {
 	            calculateIntensity(val);
 				sensorLight.count++;
 	        }
-		}
-		else {
-			sensorLight.sample++;
 		}
 
 		if (sensorLight.count >= SENSOR_LIGHT_COUNT) {
@@ -581,8 +563,8 @@ void processSensorLight() {
 
 void processSensorMagnetic() {
 	if (sensorICM.available) {
-		if (sensorMagnetic.sample >= SENSOR_MAGNETIC_SAMPLE - 1) {
-			sensorMagnetic.sample = 0;
+		if (millis() >= sensorMagnetic.sample + SENSOR_MAGNETIC_SAMPLE) {
+			sensorMagnetic.sample = millis();
 
 			sensors_event_t aevent, gevent, mevent;
 			icm.getEvent(&aevent, &gevent, &mevent);
@@ -606,9 +588,6 @@ void processSensorMagnetic() {
 			sensorMagnetic.calcInc[sensorLight.count] = sensorMagnetic.lastInc;
 
 			sensorMagnetic.count++;
-		}
-		else {
-			sensorMagnetic.sample++;
 		}
 
 		if (sensorMagnetic.count >= SENSOR_MAGNETIC_COUNT) {
