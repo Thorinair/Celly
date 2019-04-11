@@ -121,12 +121,14 @@ struct SensorICM {
 struct SensorMagnetic {
 	float calcMag[SENSOR_MAGNETIC_COUNT] = {0};
 	float calcInc[SENSOR_MAGNETIC_COUNT] = {0};
+	float lastMag = 0;
+	float lastInc = 0;
 	float rawX = 0;
 	float rawY = 0;
 	float rawZ = 0;
-	float newX = 0;
-	float newY = 0;
-	float newZ = 0;
+	float oriX = 0;
+	float oriY = 0;
+	float oriZ = 0;
 	int sample = 0;
 	int count = 0;
 } sensorMagnetic;
@@ -172,6 +174,7 @@ void processSensorHumidity();
 void processSensorPressure();
 void processSensorAir();
 void processSensorLight();
+void processSensorMagnetic();
 
 void processButtons();
 void processButtonUp();
@@ -182,13 +185,13 @@ float heading(sensors_event_t * m, sensors_event_t * a, Vector * o);
 void vectorCross(Vector * a, Vector * b, Vector * out);
 void vectorNormalize(Vector * a);
 float vectorDot(Vector * a, Vector * b);
+void assignAxes(float * inX, float * inY, float * inZ, float * outX, float * outY, float * outZ);
 void calculateIntensity(uint16_t light);
 uint32_t getAbsoluteHumidity(float temperature, float humidity);
 void ledNotifPulse(int pulse, RGB * color);
 int openURL(String url);
 void eepromWriteUInt16(int pos, uint16_t val);
 uint16_t eepromReadUInt16(int pos);
-float maxFour(float a, float b, float c, float d);
 float maxSix(float a, float b, float c, float d, float e, float f);
 
 
@@ -347,6 +350,7 @@ void processSensors() {
 	processSensorPressure();
 	processSensorAir();
 	processSensorLight();
+	processSensorMagnetic();
 }
 
 void processSensorTemperature() {
@@ -571,6 +575,67 @@ void processSensorLight() {
 	            ledNotifPulse(PULSE_DONE, &ledSensorAPD);
 	        else
 	            ledNotifPulse(PULSE_FAIL, &ledSensorAPD);
+		}
+	}
+}
+
+void processSensorMagnetic() {
+	if (sensorICM.available) {
+		if (sensorMagnetic.sample >= SENSOR_MAGNETIC_SAMPLE - 1) {
+			sensorMagnetic.sample = 0;
+
+			sensors_event_t aevent, gevent, mevent;
+			icm.getEvent(&aevent, &gevent, &mevent);
+
+    		sensorMagnetic.rawX = mevent.magnetic.x - (sensorMagneticMin.x + sensorMagneticMax.x) / 2;
+    		sensorMagnetic.rawY = -mevent.magnetic.y - (sensorMagneticMin.y + sensorMagneticMax.y) / 2;
+    		sensorMagnetic.rawZ = -mevent.magnetic.z - (sensorMagneticMin.z + sensorMagneticMax.z) / 2;
+
+			if (sensorICM.oriEnabled) {
+				assignAxes(&sensorMagnetic.rawX, &sensorMagnetic.rawY, &sensorMagnetic.rawZ, &sensorMagnetic.oriX, &sensorMagnetic.oriY, &sensorMagnetic.oriZ);
+			}
+			else {
+				sensorMagnetic.oriX = sensorMagnetic.rawX;
+				sensorMagnetic.oriY = sensorMagnetic.rawY;
+				sensorMagnetic.oriZ = sensorMagnetic.rawZ;
+			}
+
+			sensorMagnetic.lastMag = sqrt(sq(sensorMagnetic.oriX) + sq(sensorMagnetic.oriY) + sq(sensorMagnetic.oriZ));
+			sensorMagnetic.calcMag[sensorLight.count] = sensorMagnetic.lastMag;
+			sensorMagnetic.lastInc = 90 - (acos(sensorMagnetic.oriZ / sensorMagnetic.lastMag) * (180 / PI));
+			sensorMagnetic.calcInc[sensorLight.count] = sensorMagnetic.lastInc;
+
+			sensorMagnetic.count++;
+		}
+		else {
+			sensorMagnetic.sample++;
+		}
+
+		if (sensorMagnetic.count >= SENSOR_MAGNETIC_COUNT) {
+			sensorMagnetic.count = 0;
+
+			float avg = 0;
+			for (int i = 0; i < SENSOR_MAGNETIC_COUNT; i++)
+				avg += sensorMagnetic.calcMag[i] / SENSOR_MAGNETIC_COUNT;
+
+	        int result;
+	        varipassWriteFloat(VARIPASS_KEY, VARIPASS_ID_MAGNITUDE, avg, &result);
+	        
+	        if (result == VARIPASS_RESULT_SUCCESS)
+	            ledNotifPulse(PULSE_DONE, &ledSensorICMMag);
+	        else
+	            ledNotifPulse(PULSE_FAIL, &ledSensorICMMag);
+
+	        avg = 0;
+			for (int i = 0; i < SENSOR_MAGNETIC_COUNT; i++)
+				avg += sensorMagnetic.calcInc[i] / SENSOR_MAGNETIC_COUNT;
+
+	        varipassWriteFloat(VARIPASS_KEY, VARIPASS_ID_INCLINATION, avg, &result);
+	        
+	        if (result == VARIPASS_RESULT_SUCCESS)
+	            ledNotifPulse(PULSE_DONE, &ledSensorICMMag);
+	        else
+	            ledNotifPulse(PULSE_FAIL, &ledSensorICMMag);
 		}
 	}
 }
@@ -939,6 +1004,17 @@ void processButtonBoth() {
 	    	else
 	    		url += "&icm_ori_z=" + String(sensorICM.oriZ);
 	    }
+	    url += "&magnetic_x_raw=" + String(sensorMagnetic.rawX);
+	    url += "&magnetic_y_raw=" + String(sensorMagnetic.rawY);
+	    url += "&magnetic_z_raw=" + String(sensorMagnetic.rawZ);
+	    if (sensorICM.oriEnabled) {
+	    	url += "&magnetic_x_ori=" + String(sensorMagnetic.oriX);
+	    	url += "&magnetic_y_ori=" + String(sensorMagnetic.oriY);
+	    	url += "&magnetic_z_ori=" + String(sensorMagnetic.oriZ);
+	    }
+	    url += "&magnetic_magnitude=" + String(sensorMagnetic.lastMag);
+	    url += "&magnetic_inclination=" + String(sensorMagnetic.lastInc);
+
 	}
 
     openURL(url);
@@ -984,6 +1060,47 @@ void vectorNormalize(Vector * a) {
 
 float vectorDot(Vector * a, Vector * b) {
     return (a->x * b->x) + (a->y * b->y) + (a->z * b->z);
+}
+
+void assignAxes(float * inX, float * inY, float * inZ, float * outX, float * outY, float * outZ) {
+	if (sensorICM.oriX == 'X')
+		*outX = *inX;
+	else if (sensorICM.oriX == 'x')
+		*outX = -*inX;
+	else if (sensorICM.oriX == 'Y')
+		*outX = *inY;
+	else if (sensorICM.oriX == 'y')
+		*outX = -*inY;
+	else if (sensorICM.oriX == 'Z')
+		*outX = *inZ;
+	else if (sensorICM.oriX == 'z')
+		*outX = -*inZ;
+
+	if (sensorICM.oriY == 'X')
+		*outY = *inX;
+	else if (sensorICM.oriY == 'x')
+		*outY = -*inX;
+	else if (sensorICM.oriY == 'Y')
+		*outY = *inY;
+	else if (sensorICM.oriY == 'y')
+		*outY = -*inY;
+	else if (sensorICM.oriY == 'Z')
+		*outY = *inZ;
+	else if (sensorICM.oriY == 'z')
+		*outY = -*inZ;
+
+	if (sensorICM.oriZ == 'X')
+		*outZ = *inX;
+	else if (sensorICM.oriZ == 'x')
+		*outZ = -*inX;
+	else if (sensorICM.oriZ == 'Y')
+		*outZ = *inY;
+	else if (sensorICM.oriZ == 'y')
+		*outZ = -*inY;
+	else if (sensorICM.oriZ == 'Z')
+		*outZ = *inZ;
+	else if (sensorICM.oriZ == 'z')
+		*outZ = -*inZ;
 }
 
 void calculateIntensity(uint16_t light) {
