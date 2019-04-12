@@ -946,7 +946,7 @@ void processButtonBoth() {
 	    url += "&voc_raw=" + String(sensorAir.lastVOC);
 	    url += "&air_base_enabled=" + String(sensorAir.baseEnabled);
 	    if (sensorAir.baseEnabled) {
-	    	url += "&air_base_next=" + String(sensorAir.baseNext/1000);
+	    	url += "&air_base_next=" + String((sensorAir.baseNext - millis()) / 1000);
 		    url += "&air_base_co2=0x" + String(sensorAir.baseCO2, HEX);
 		    url += "&air_base_voc=0x" + String(sensorAir.baseVOC, HEX);
 		}
