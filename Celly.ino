@@ -934,8 +934,17 @@ void processButtonDown() {
 }
 
 void processButtonBoth() {
-    String url = LUNA_URL;
-    url += "&key=" + String(LUNA_KEY);
+    String url = String(LUNA_URL) + "&key=" + String(LUNA_KEY);
+    String ssid = WiFi.SSID();
+    IPAddress ip = WiFi.localIP();
+    for (int i = 0; i < ssid.length(); i++) {
+    	if (ssid[i] == ' ')
+    		ssid[i] = '+';
+    }
+
+
+    url += "&wifi_ssid=" + ssid;
+    url += "&wifi_ip=" + String(ip[0]) + '.' + String(ip[1]) + '.' + String(ip[2]) + '.' + String(ip[3]);
     url += "&temperature_raw=" + String(sensorTemperature.last);
     url += "&humidity_raw=" + String(sensorHumidity.last);
 	if (sensorPressure.available) {

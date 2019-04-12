@@ -62,7 +62,7 @@
 #define SENSOR_LIGHT_DEBUG  false
 
 /********
- * IMU Configuration
+ * Magnetic Configuration
  *******/
 
 /* Duration of a single sample in ms. */
@@ -75,7 +75,9 @@
 Vector sensorMagneticMin {-103.35, -26.70, -10.05};
 Vector sensorMagneticMax {  11.25,  91.35,  87.45};
 
-
+/********
+ * Vibration Configuration
+ *******/
 
 /* Range of the accelerometer used for vibration: Use one of the following: */
 /* ICM20948_ACCELRANGE_2G, ICM20948_ACCELRANGE_4G, ICM20948_ACCELRANGE_8G, ICM20948_ACCELRANGE_16G */
