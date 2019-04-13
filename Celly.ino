@@ -20,7 +20,8 @@
 #include "ConfigurationVariPass.h"
 #include "ConfigurationLuna.h"
 
-#define max(a,b) ((a)>(b)?(a):(b))
+#define max(a,b) ((a) > (b) ? (a) :  (b))
+#define abs(x)   ((x) >  0  ? (x) : -(x))
 
 #define PIN_PIXEL       13
 #define PIN_BUTTON_UP   12
@@ -133,6 +134,7 @@ struct SensorMagnetic {
 } sensorMagnetic;
 
 struct SensorVibration {
+	float lowCut = (2 * PI * ((float)TICK_MICRO_TIME/1000) * SENSOR_VIBRATION_HIGHPASS) / (2 * PI * ((float)TICK_MICRO_TIME/1000) * SENSOR_VIBRATION_HIGHPASS + 1);
 	float accX[TICK_SAMPLE_COUNT] = {0};
 	float accY[TICK_SAMPLE_COUNT] = {0};
 	float accZ[TICK_SAMPLE_COUNT] = {0};
@@ -145,6 +147,8 @@ struct SensorVibration {
 	float avgX = 0;
 	float avgY = 0;
 	float avgZ = 0;
+	int micro = 0;
+	int count = 0;
 } sensorVibration;
 
 
@@ -187,6 +191,7 @@ void processSensorVibationMicro();
 void processSensorAirSample();
 void processSensorLightSample();
 void processSensorMagneticSample();
+void processSensorVibrationSample();
 
 void processSensorTemperatureUpload();
 void processSensorHumidityUpload();
@@ -194,6 +199,7 @@ void processSensorPressureUpload();
 void processSensorAirUpload();
 void processSensorLightUpload();
 void processSensorMagneticUpload();
+void processSensorVibrationUpload();
 
 void processButtons();
 void processButtonUp();
@@ -214,6 +220,7 @@ int openURL(String url);
 void eepromWriteUInt16(int pos, uint16_t val);
 uint16_t eepromReadUInt16(int pos);
 float maxSix(float a, float b, float c, float d, float e, float f);
+int compare(const void* a, const void* b);
 
 
 
@@ -297,7 +304,7 @@ void setupSensor_apd() {
 }
 
 void setupSensor_icm() {
-	if(icm.begin(SENSOR_VIBRATION_RANGE, GYRO_RANGE_250DPS)) {
+	if(icm.begin(SENSOR_VIBRATION_RANGE, GYRO_RANGE_250DPS, SENSOR_VIBRATION_LOWPASS)) {
     	EEPROM.begin(512);
     	sensorICM.oriEnabled = EEPROM.read(EEPROM_ORI_ENABLED);
     	EEPROM.end();
@@ -331,6 +338,7 @@ void processTicks() {
 		processSensorAirSample();
 		processSensorLightSample();
 		processSensorMagneticSample();
+		processSensorVibrationSample();
 
 		ticks.tickUploadCounter++;
 		if (ticks.tickUploadCounter >= TICK_UPLOAD_COUNT) {
@@ -343,6 +351,7 @@ void processTicks() {
 			processSensorAirUpload();
 			processSensorLightUpload();
 			processSensorMagneticUpload();
+			processSensorVibrationUpload();
 
 			if (ticks.firstUpload)
 				ticks.firstUpload = false;
@@ -353,8 +362,19 @@ void processTicks() {
 
 
 void processSensorVibationMicro() {
-	sensors_event_t aevent;
-	icm.getEventAcc(&aevent);
+	if (sensorICM.available) {
+
+		// Measure
+		sensors_event_t aevent;
+		icm.getEventAcc(&aevent);
+
+		// Save
+		sensorVibration.accX[sensorVibration.micro] = aevent.acceleration.x;
+		sensorVibration.accY[sensorVibration.micro] = aevent.acceleration.y;
+		sensorVibration.accZ[sensorVibration.micro] = aevent.acceleration.z;
+
+		sensorVibration.micro++;
+	}
 }
 
 
@@ -428,6 +448,49 @@ void processSensorMagneticSample() {
 		sensorMagnetic.lastZ = valZ;
 
 		sensorMagnetic.count++;
+	}
+}
+
+void processSensorVibrationSample() {
+	if (sensorICM.available) {
+
+		// Process
+		float cutX, cutY, cutZ;
+		float valX, valY, valZ;
+		sensorVibration.rawX[sensorVibration.count] = 0;
+		sensorVibration.rawY[sensorVibration.count] = 0;
+		sensorVibration.rawZ[sensorVibration.count] = 0;
+
+		for (int i = 0; i < sensorVibration.micro; i++) {
+			if (i == 0) {
+				cutX = sensorVibration.accX[i];
+				cutY = sensorVibration.accY[i];
+				cutZ = sensorVibration.accZ[i];
+			}
+			else {
+				cutX = cutX * (1 - sensorVibration.lowCut) + sensorVibration.accX[i] * sensorVibration.lowCut;
+				cutY = cutY * (1 - sensorVibration.lowCut) + sensorVibration.accY[i] * sensorVibration.lowCut;
+				cutZ = cutZ * (1 - sensorVibration.lowCut) + sensorVibration.accZ[i] * sensorVibration.lowCut;
+			}
+
+			valX = sensorVibration.accX[i] - cutX;
+			valY = sensorVibration.accY[i] - cutY;
+			valZ = sensorVibration.accZ[i] - cutZ;
+
+			sensorVibration.rawX[sensorVibration.count] += sq(valX * SENSOR_VIBRATION_GAIN) / sensorVibration.micro;
+			sensorVibration.rawY[sensorVibration.count] += sq(valY * SENSOR_VIBRATION_GAIN) / sensorVibration.micro;
+			sensorVibration.rawZ[sensorVibration.count] += sq(valZ * SENSOR_VIBRATION_GAIN) / sensorVibration.micro;
+		}
+
+		// Save
+		sensorVibration.lastX = sensorVibration.rawX[sensorVibration.count];
+		sensorVibration.lastY = sensorVibration.rawY[sensorVibration.count];
+		sensorVibration.lastZ = sensorVibration.rawZ[sensorVibration.count];
+		if (SENSOR_VIBRATION_DEBUG)
+			Serial.println("Vibration: " + String(sensorVibration.lastX) + ", " + String(sensorVibration.lastY) + ", " + String(sensorVibration.lastZ));
+
+		sensorVibration.count++;
+		sensorVibration.micro = 0;
 	}
 }
 
@@ -636,6 +699,59 @@ void processSensorMagneticUpload() {
             ledNotifPulse(PULSE_FAIL, &ledSensorICMMag);
 
 		sensorMagnetic.count = 0;
+	}
+}
+
+void processSensorVibrationUpload() {
+	if (sensorICM.available) {
+
+		// Process
+		float avgX = 0;
+		float avgY = 0;
+		float avgZ = 0;
+		for(int i = 0; i < sensorVibration.count; i++) {
+			avgX += sensorVibration.rawX[i] / sensorVibration.count;
+			avgY += sensorVibration.rawY[i] / sensorVibration.count;
+			avgZ += sensorVibration.rawZ[i] / sensorVibration.count;
+		}
+
+		if (sensorICM.oriEnabled) {
+			assignAxes(&avgX, &avgY, &avgZ, &sensorVibration.avgX, &sensorVibration.avgY, &sensorVibration.avgZ);
+		}
+		else {
+			sensorVibration.avgX = avgX;
+			sensorVibration.avgY = avgY;
+			sensorVibration.avgZ = avgZ;
+		}
+
+		sensorVibration.avgX = abs(sensorVibration.avgX);
+		sensorVibration.avgY = abs(sensorVibration.avgY);
+		sensorVibration.avgZ = abs(sensorVibration.avgZ);
+
+		// Upload
+        int result;
+        varipassWriteFloat(VARIPASS_KEY, VARIPASS_ID_VIBRATION_X, sensorVibration.avgX, &result);
+
+		if (result == VARIPASS_RESULT_SUCCESS)
+	        ledNotifPulse(PULSE_DONE, &ledSensorICMVib);
+        else
+            ledNotifPulse(PULSE_FAIL, &ledSensorICMVib);
+
+        varipassWriteFloat(VARIPASS_KEY, VARIPASS_ID_VIBRATION_Y, sensorVibration.avgY, &result);
+
+		if (result == VARIPASS_RESULT_SUCCESS)
+	        ledNotifPulse(PULSE_DONE, &ledSensorICMVib);
+        else
+            ledNotifPulse(PULSE_FAIL, &ledSensorICMVib);
+
+        varipassWriteFloat(VARIPASS_KEY, VARIPASS_ID_VIBRATION_Z, sensorVibration.avgZ, &result);
+
+		if (result == VARIPASS_RESULT_SUCCESS)
+	        ledNotifPulse(PULSE_DONE, &ledSensorICMVib);
+        else
+            ledNotifPulse(PULSE_FAIL, &ledSensorICMVib);
+
+		sensorVibration.count = 0;
 	}
 }
 
@@ -1027,7 +1143,14 @@ void processButtonBoth() {
 		    url += "&magnetic_magnitude=" + String(sensorMagnetic.lastMag);
 		    url += "&magnetic_inclination=" + String(sensorMagnetic.lastInc);
 		}
-
+	    url += "&vibration_x_raw=" + String(sensorVibration.lastX);
+	    url += "&vibration_y_raw=" + String(sensorVibration.lastY);
+	    url += "&vibration_z_raw=" + String(sensorVibration.lastZ);
+	    if (!ticks.firstUpload) {
+	    	url += "&vibration_x_avg=" + String(sensorVibration.avgX);
+	    	url += "&vibration_y_avg=" + String(sensorVibration.avgY);
+	    	url += "&vibration_z_avg=" + String(sensorVibration.avgZ);
+		}
 	}
 
     openURL(url);
@@ -1269,6 +1392,15 @@ float maxSix(float a, float b, float c, float d, float e, float f) {
 	m = max(m, d);
 	m = max(m, e);
 	return max(m, f);
+}
+
+int compare(const void* a, const void* b) {
+     float float_a = * ((float*) a);
+     float float_b = * ((float*) b);
+
+     if (float_a == float_b) return 0;
+     else if (float_a < float_b) return -1;
+     else return 1;
 }
 
 

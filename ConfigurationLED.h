@@ -62,7 +62,7 @@ RGB ledSensorBMP       {32, 96, 255};
 RGB ledSensorSGP       {192, 64, 0};
 RGB ledSensorAPD       {128, 128, 128};
 RGB ledSensorICMMag    {96, 16, 255};
-RGB ledSensorICMAcc    {160, 32, 48};
+RGB ledSensorICMVib    {160, 32, 48};
 
 RGB ledButtonUp        {96, 16, 255};
 RGB ledButtonDown      {192, 64, 0};
