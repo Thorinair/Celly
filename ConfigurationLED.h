@@ -23,11 +23,11 @@ RGB ledLowColor {0, 0, 0};
  * Power LED Configuration
  *******/
 
-/* Duration of a single gradient fade step. */
-#define LED_POWER_STEP     50
+/* Micro tick count of a single gradient fade step. */
+#define LED_POWER_STEP     10
 
-/* Total duration of the gradient fade. */
-#define LED_POWER_DURATION 30000
+/* Total duration of the gradient fade in seconds. */
+#define LED_POWER_DURATION 30
 
 /* Gradient stop definitions. */
 RGB ledPowerStopA {32, 128, 255};

@@ -52,49 +52,49 @@ struct LEDPower {
 	RGB stepper {0, 0, 0};
 	int step = LED_POWER_STEP;
 	int counter = 0;
-	int div = LED_POWER_DURATION / LED_POWER_STEP / 4;
+	int duration = LED_POWER_DURATION * 1000 / TICK_MICRO_TIME;
+	int div = duration / LED_POWER_STEP / 4;
 } ledPower;
+
+/* Ticks */
+struct Ticks {
+	int tickMicroDelay = TICK_MICRO_TIME - TICK_MICRO_TIME_MEASURE;
+	int tickSampleCounter = 0;
+	int tickUploadCounter = 0;
+	int buttonHoldTime = BUTTON_HOLD_TIME / TICK_MICRO_TIME;
+	bool firstUpload = true;
+} ticks;
 
 /* Sensors */
 SHT21 sht;
 
 struct SensorTemperature {
-	float raw[SENSOR_TEMPERATURE_COUNT] = {0};
 	float last = 0;
-	unsigned long sample = 0;
-	int count = 0;
 } sensorTemperature;
 
 struct SensorHumidity {
-	float raw[SENSOR_HUMIDITY_COUNT] = {0};
 	float last = 0;
-	unsigned long sample = 0;
-	int count = 0;
 } sensorHumidity;
 
 SFE_BMP180 bmp;
 
 struct SensorPressure {
 	bool available = false;
-	float raw[SENSOR_PRESSURE_COUNT] = {0};
 	float last = 0;
-	unsigned long sample = 0;
-	int count = 0;
 } sensorPressure;
 
 Adafruit_SGP30 sgp;
 
 struct SensorAir {
 	bool available = false;
-	uint16_t rawCO2[SENSOR_AIR_COUNT] = {0};
-	uint16_t rawVOC[SENSOR_AIR_COUNT] = {0};
+	uint16_t rawCO2[TICK_UPLOAD_COUNT] = {0};
+	uint16_t rawVOC[TICK_UPLOAD_COUNT] = {0};
 	uint16_t lastCO2 = 0;
 	uint16_t lastVOC = 0;
 	bool baseEnabled = false;
 	long baseNext = 0;
 	uint16_t baseCO2 = 0;
 	uint16_t baseVOC = 0;
-	unsigned long sample = 0;
 	int count = 0;
 } sensorAir;
 
@@ -102,9 +102,8 @@ SparkFun_APDS9960 apd = SparkFun_APDS9960();
 
 struct SensorLight {
 	bool available = false;
-	uint16_t raw[SENSOR_LIGHT_COUNT] = {0};
+	uint16_t raw[TICK_UPLOAD_COUNT] = {0};
 	uint16_t last = 0;
-	unsigned long sample = 0;
 	int count = 0;
 } sensorLight;
 
@@ -119,17 +118,17 @@ struct SensorICM {
 } sensorICM;
 
 struct SensorMagnetic {
-	float calcMag[SENSOR_MAGNETIC_COUNT] = {0};
-	float calcInc[SENSOR_MAGNETIC_COUNT] = {0};
-	float lastMag = 0;
-	float lastInc = 0;
-	float rawX = 0;
-	float rawY = 0;
-	float rawZ = 0;
+	float rawX[TICK_UPLOAD_COUNT] = {0};
+	float rawY[TICK_UPLOAD_COUNT] = {0};
+	float rawZ[TICK_UPLOAD_COUNT] = {0};
+	float lastX = 0;
+	float lastY = 0;
+	float lastZ = 0;
 	float oriX = 0;
 	float oriY = 0;
 	float oriZ = 0;
-	unsigned long sample = 0;
+	float lastMag = 0;
+	float lastInc = 0;
 	int count = 0;
 } sensorMagnetic;
 
@@ -166,20 +165,27 @@ void setupSensor_sgp();
 void setupSensor_apd();
 void setupSensor_icm();
 
-void processLEDPower();
+void processTicks();
 
-void processSensors();
-void processSensorTemperature();
-void processSensorHumidity();
-void processSensorPressure();
-void processSensorAir();
-void processSensorLight();
-void processSensorMagnetic();
+void processSensorVibationMicro();
+
+void processSensorAirSample();
+void processSensorLightSample();
+void processSensorMagneticSample();
+
+void processSensorTemperatureUpload();
+void processSensorHumidityUpload();
+void processSensorPressureUpload();
+void processSensorAirUpload();
+void processSensorLightUpload();
+void processSensorMagneticUpload();
 
 void processButtons();
 void processButtonUp();
 void processButtonDown();
 void processButtonBoth();
+
+void processLEDPower();
 
 float heading(sensors_event_t * m, sensors_event_t * a, Vector * o);
 void vectorCross(Vector * a, Vector * b, Vector * out);
@@ -193,7 +199,6 @@ int openURL(String url);
 void eepromWriteUInt16(int pos, uint16_t val);
 uint16_t eepromReadUInt16(int pos);
 float maxSix(float a, float b, float c, float d, float e, float f);
-
 
 
 
@@ -243,7 +248,7 @@ void setupSensor_sgp() {
     	EEPROM.end();
 
     	if (sensorAir.baseEnabled) {
-			sensorAir.baseNext = millis() + SENSOR_AIR_BASE_COUNTDOWN * 1000;
+			sensorAir.baseNext = SENSOR_AIR_BASE_COUNTDOWN;
 
     		EEPROM.begin(512);
     		sensorAir.baseCO2 = eepromReadUInt16(EEPROM_BASE_CO2);
@@ -298,326 +303,328 @@ void setupSensor_icm() {
 
 
 
+void processTicks() {
 
-void processLEDPower() {
-    if (ledPower.step >= LED_POWER_STEP) {
-        ledPower.step = 0;
+	/* MICRO TICK. */
+	processSensorVibationMicro();
 
-        if (ledPower.counter == 0) {
-            ledPower.stepper.r = (ledPowerStopB.r - ledPower.led.r) / ledPower.div;
-            ledPower.stepper.g = (ledPowerStopB.g - ledPower.led.g) / ledPower.div;
-            ledPower.stepper.b = (ledPowerStopB.b - ledPower.led.b) / ledPower.div;
-        }
-        else if (ledPower.counter == ledPower.div) {
-            ledPower.stepper.r = (ledPowerStopC.r - ledPower.led.r) / ledPower.div;
-            ledPower.stepper.g = (ledPowerStopC.g - ledPower.led.g) / ledPower.div;
-            ledPower.stepper.b = (ledPowerStopC.b - ledPower.led.b) / ledPower.div;
-        }
-        else if (ledPower.counter == ledPower.div * 2) {
-            ledPower.stepper.r = (ledPowerStopD.r - ledPower.led.r) / ledPower.div;
-            ledPower.stepper.g = (ledPowerStopD.g - ledPower.led.g) / ledPower.div;
-            ledPower.stepper.b = (ledPowerStopD.b - ledPower.led.b) / ledPower.div;
-        }
-        else if (ledPower.counter == ledPower.div * 3) {
-            ledPower.stepper.r = (ledPowerStopA.r - ledPower.led.r) / ledPower.div;
-            ledPower.stepper.g = (ledPowerStopA.g - ledPower.led.g) / ledPower.div;
-            ledPower.stepper.b = (ledPowerStopA.b - ledPower.led.b) / ledPower.div;
-        }
-        
-        if (ledPower.counter >= ledPower.div * 4)
-            ledPower.counter = 0;
-        else {
-            ledPower.counter++;
-            ledPower.led.r += ledPower.stepper.r;
-            ledPower.led.g += ledPower.stepper.g;
-            ledPower.led.b += ledPower.stepper.b;
-        }       
-        
-        if (intensity == -1)
-        	strip.setPixelColor(0, strip.Color(ledLowColor.r, ledLowColor.g, ledLowColor.b));
-        else
-        	strip.setPixelColor(0, strip.Color(ledPower.led.r * intensity, ledPower.led.g * intensity, ledPower.led.b * intensity));
-        strip.show();
-    }
-    else {
-        ledPower.step++;
-    }
-}
+	ticks.tickSampleCounter++;
+	if (ticks.tickSampleCounter >= TICK_SAMPLE_COUNT) {
+		ticks.tickSampleCounter = 0;
 
-void processSensors() {
-	processSensorTemperature();
-	processSensorHumidity();
-	processSensorPressure();
-	processSensorAir();
-	processSensorLight();
-	processSensorMagnetic();
-}
+		/* SAMPLE TICK. */
+		processSensorAirSample();
+		processSensorLightSample();
+		processSensorMagneticSample();
 
-void processSensorTemperature() {
-	if (millis() >= sensorTemperature.sample + SENSOR_TEMPERATURE_SAMPLE) {
-		sensorTemperature.sample = millis();
-		float val = sht.getTemperature();
-		if (SENSOR_TEMPERATURE_DEBUG)
-			Serial.println("Temperature: " + String(val));
-		sensorTemperature.raw[sensorTemperature.count] = val;
-		sensorTemperature.last = val;
-		sensorTemperature.count++;
-	}
+		ticks.tickUploadCounter++;
+		if (ticks.tickUploadCounter >= TICK_UPLOAD_COUNT) {
+			ticks.tickUploadCounter = 0;
 
-	if (sensorTemperature.count >= SENSOR_TEMPERATURE_COUNT) {
-		sensorTemperature.count = 0;
-		float avg = 0;
-		for (int i = 0; i < SENSOR_TEMPERATURE_COUNT; i++)
-			avg += sensorTemperature.raw[i] / SENSOR_TEMPERATURE_COUNT;
+			/* UPLOAD TICK. */
+			processSensorTemperatureUpload();
+			processSensorHumidityUpload();
+			processSensorPressureUpload();
+			processSensorAirUpload();
+			processSensorLightUpload();
+			processSensorMagneticUpload();
 
-        int result;
-        varipassWriteFloat(VARIPASS_KEY, VARIPASS_ID_TEMPERATURE, avg, &result);
-        
-        if (result == VARIPASS_RESULT_SUCCESS)
-            ledNotifPulse(PULSE_DONE, &ledSensorSHT);
-        else
-            ledNotifPulse(PULSE_FAIL, &ledSensorSHT);
-	}
-}
-
-void processSensorHumidity() {
-	if (millis() >= sensorHumidity.sample + SENSOR_HUMIDITY_SAMPLE) {
-		sensorHumidity.sample = millis();
-		float val = sht.getHumidity();
-		if (SENSOR_HUMIDITY_DEBUG)
-			Serial.println("Humidity: " + String(val));
-		sensorHumidity.raw[sensorHumidity.count] = val;
-		sensorHumidity.last = val;
-		sensorHumidity.count++;
-	}
-
-	if (sensorHumidity.count >= SENSOR_HUMIDITY_COUNT) {
-		sensorHumidity.count = 0;
-		float avg = 0;
-		for (int i = 0; i < SENSOR_HUMIDITY_COUNT; i++)
-			avg += sensorHumidity.raw[i] / SENSOR_HUMIDITY_COUNT;
-
-        int result;
-        varipassWriteFloat(VARIPASS_KEY, VARIPASS_ID_HUMIDITY, avg, &result);
-        
-        if (result == VARIPASS_RESULT_SUCCESS)
-            ledNotifPulse(PULSE_DONE, &ledSensorSHT);
-        else
-            ledNotifPulse(PULSE_FAIL, &ledSensorSHT);
-	}
-}
-
-void processSensorPressure() {
-	if (sensorPressure.available) {
-		if (millis() >= sensorPressure.sample + SENSOR_PRESSURE_SAMPLE) {
-			sensorPressure.sample = millis();
-
-	        char stat;
-	        double temp, pres,p0,a;  
-			stat = bmp.startTemperature();
-	        if (stat != 0) {
-	            delay(stat);            
-	            stat = bmp.getTemperature(temp);
-	            if (stat != 0) {                            
-	                stat = bmp.startPressure(3);
-	                if (stat != 0) {
-	                    delay(stat);                    
-	                    stat = bmp.getPressure(pres, temp);
-	                    if (stat != 0) {   
-	                    	float val = (float) bmp.sealevel(pres, SENSOR_PRESSURE_ALTITUDE);   
-							if (SENSOR_PRESSURE_DEBUG)
-								Serial.println("Pressure: " + String(val));         
-	                        sensorPressure.raw[sensorPressure.count] = val;
-							sensorPressure.last = val;
-							sensorPressure.count++;
-	                    }
-	                }
-	            }
-	        }
-		}
-
-		if (sensorPressure.count >= SENSOR_PRESSURE_COUNT) {
-			sensorPressure.count = 0;
-			float avg = 0;
-			for (int i = 0; i < SENSOR_PRESSURE_COUNT; i++)
-				avg += sensorPressure.raw[i] / SENSOR_PRESSURE_COUNT;
-
-	        int result;
-	        varipassWriteFloat(VARIPASS_KEY, VARIPASS_ID_PRESSURE, avg, &result);
-	        
-	        if (result == VARIPASS_RESULT_SUCCESS)
-	            ledNotifPulse(PULSE_DONE, &ledSensorBMP);
-	        else
-	            ledNotifPulse(PULSE_FAIL, &ledSensorBMP);
+			if (ticks.firstUpload)
+				ticks.firstUpload = false;
 		}
 	}
 }
 
-void processSensorAir() {
-	if (sensorAir.available) {
-		if (millis() >= sensorAir.sample + SENSOR_AIR_SAMPLE) {
-			sensorAir.sample = millis();
 
-	        sgp.setHumidity(getAbsoluteHumidity(sensorTemperature.last, sensorHumidity.last));
-	        if (sgp.IAQmeasure()) {
 
-	        	uint16_t val = sgp.eCO2;
-				if (SENSOR_AIR_DEBUG)
-					Serial.println("CO2: " + String(val));
-	        	sensorAir.rawCO2[sensorAir.count] = val;
-				sensorAir.lastCO2 = val;
+void processSensorVibationMicro() {
+	sensors_event_t aevent;
+	icm.getEventAcc(&aevent);
+}
 
-				val = sgp.TVOC;
-				if (SENSOR_AIR_DEBUG)
-					Serial.println("VOC: " + String(val)); 
-	        	sensorAir.rawVOC[sensorAir.count] = val; 
-				sensorAir.lastVOC = val;
 
-				sensorAir.count++;				
-  			}
-		}
 
-		if (sensorAir.count >= SENSOR_AIR_COUNT) {
-			sensorAir.count = 0;
+void processSensorAirSample() {
+	// Measure
+	if (!ticks.firstUpload)
+		sgp.setHumidity(getAbsoluteHumidity(sensorTemperature.last, sensorHumidity.last));
 
-			float avg = 0;
-			for (int i = 0; i < SENSOR_AIR_COUNT; i++)
-				avg += (float) sensorAir.rawCO2[i] / SENSOR_AIR_COUNT;
+	if (sgp.IAQmeasure()) {
 
-	        int result;
-	        varipassWriteFloat(VARIPASS_KEY, VARIPASS_ID_CO2, avg, &result);
-	        
-	        if (result == VARIPASS_RESULT_SUCCESS)
-	            ledNotifPulse(PULSE_DONE, &ledSensorSGP);
-	        else
-	            ledNotifPulse(PULSE_FAIL, &ledSensorSGP);
-			
-			avg = 0;
-			for (int i = 0; i < SENSOR_AIR_COUNT; i++)
-				avg += (float) sensorAir.rawVOC[i] / SENSOR_AIR_COUNT;
+		uint16_t val = sgp.eCO2;
+		if (SENSOR_AIR_DEBUG)
+			Serial.println("CO2: " + String(val));
 
-	        varipassWriteFloat(VARIPASS_KEY, VARIPASS_ID_VOC, avg, &result);
-	        
-	        if (result == VARIPASS_RESULT_SUCCESS)
-	            ledNotifPulse(PULSE_DONE, &ledSensorSGP);
-	        else
-	            ledNotifPulse(PULSE_FAIL, &ledSensorSGP);
-		}
+		// Save
+		sensorAir.rawCO2[sensorAir.count] = val;
+		sensorAir.lastCO2 = val;
 
-		if (sensorAir.baseEnabled) {
-			if (millis() >= sensorAir.baseNext) {
-				sensorAir.baseNext = millis() + SENSOR_AIR_BASE_COUNTDOWN * 1000;
+		val = sgp.TVOC;
+		if (SENSOR_AIR_DEBUG)
+			Serial.println("VOC: " + String(val)); 
 
-    			if (sgp.getIAQBaseline(&sensorAir.baseCO2, &sensorAir.baseVOC)) {
-		    		EEPROM.begin(512);
-		    		eepromWriteUInt16(EEPROM_BASE_CO2, sensorAir.baseCO2);
-		    		eepromWriteUInt16(EEPROM_BASE_VOC, sensorAir.baseVOC);
-		    		EEPROM.commit();
-		    		EEPROM.end();
-    			}
-    			else {
-					ledNotifPulse(PULSE_ERRO, &ledSensorSGP);
-    			}
-			}
-		}
+		// Save
+		sensorAir.rawVOC[sensorAir.count] = val; 
+		sensorAir.lastVOC = val;
+
+		sensorAir.count++;			
 	}
 }
 
-void processSensorLight() {
+void processSensorLightSample() {
 	if (sensorLight.available) {
-		if (millis() >= sensorLight.sample + SENSOR_LIGHT_SAMPLE) {
-			sensorLight.sample = millis();
 
-			uint16_t val = 0;
-	        if (apd.readAmbientLight(val)) {
-				if (SENSOR_LIGHT_DEBUG)
-					Serial.println("Light: " + String(val));
-				sensorLight.raw[sensorLight.count] = val;
-				sensorLight.last = val;
-	            calculateIntensity(val);
-				sensorLight.count++;
-	        }
-		}
+		// Measure
+		uint16_t val = 0;
+        if (apd.readAmbientLight(val)) {
+			if (SENSOR_LIGHT_DEBUG)
+				Serial.println("Light: " + String(val));
 
-		if (sensorLight.count >= SENSOR_LIGHT_COUNT) {
-			sensorLight.count = 0;
-			float avg = 0;
-			for (int i = 0; i < SENSOR_LIGHT_COUNT; i++)
-				avg += (float) sensorLight.raw[i] / SENSOR_LIGHT_COUNT;
+			// Save
+			sensorLight.raw[sensorLight.count] = val;
+			sensorLight.last = val;
 
-			if (SENSOR_LIGHT_LOG) {
-				avg += 1;
-				avg = log(avg);
-			}
+			sensorLight.count++;
 
-	        int result;
-	        varipassWriteFloat(VARIPASS_KEY, VARIPASS_ID_LIGHT, avg, &result);
-	        
-	        if (result == VARIPASS_RESULT_SUCCESS)
-	            ledNotifPulse(PULSE_DONE, &ledSensorAPD);
-	        else
-	            ledNotifPulse(PULSE_FAIL, &ledSensorAPD);
-		}
+            calculateIntensity(val);
+        }
 	}
 }
 
-void processSensorMagnetic() {
+void processSensorMagneticSample() {
 	if (sensorICM.available) {
-		if (millis() >= sensorMagnetic.sample + SENSOR_MAGNETIC_SAMPLE) {
-			sensorMagnetic.sample = millis();
 
-			sensors_event_t aevent, gevent, mevent;
-			icm.getEvent(&aevent, &gevent, &mevent);
+		// Measure
+		sensors_event_t mevent;
+		icm.getEventMag(&mevent);
 
-    		sensorMagnetic.rawX = mevent.magnetic.x - (sensorMagneticMin.x + sensorMagneticMax.x) / 2;
-    		sensorMagnetic.rawY = -mevent.magnetic.y - (sensorMagneticMin.y + sensorMagneticMax.y) / 2;
-    		sensorMagnetic.rawZ = -mevent.magnetic.z - (sensorMagneticMin.z + sensorMagneticMax.z) / 2;
+		float valX = mevent.magnetic.x;
+		float valY = -mevent.magnetic.y;
+		float valZ = -mevent.magnetic.z;
+		if (SENSOR_MAGNETIC_DEBUG)
+			Serial.println("Magnetic: " + String(valX) + ", " + String(valY) + ", " + String(valZ));
 
-			if (sensorICM.oriEnabled) {
-				assignAxes(&sensorMagnetic.rawX, &sensorMagnetic.rawY, &sensorMagnetic.rawZ, &sensorMagnetic.oriX, &sensorMagnetic.oriY, &sensorMagnetic.oriZ);
-			}
-			else {
-				sensorMagnetic.oriX = sensorMagnetic.rawX;
-				sensorMagnetic.oriY = sensorMagnetic.rawY;
-				sensorMagnetic.oriZ = sensorMagnetic.rawZ;
-			}
+		// Save
+		sensorMagnetic.rawX[sensorMagnetic.count] = valX;
+		sensorMagnetic.rawY[sensorMagnetic.count] = valY;
+		sensorMagnetic.rawZ[sensorMagnetic.count] = valZ;
+		sensorMagnetic.lastX = valX;
+		sensorMagnetic.lastY = valY;
+		sensorMagnetic.lastZ = valZ;
 
-			sensorMagnetic.lastMag = sqrt(sq(sensorMagnetic.oriX) + sq(sensorMagnetic.oriY) + sq(sensorMagnetic.oriZ));
-			sensorMagnetic.calcMag[sensorLight.count] = sensorMagnetic.lastMag;
-			sensorMagnetic.lastInc = 90 - (acos(sensorMagnetic.oriZ / sensorMagnetic.lastMag) * (180 / PI));
-			sensorMagnetic.calcInc[sensorLight.count] = sensorMagnetic.lastInc;
-
-			sensorMagnetic.count++;
-		}
-
-		if (sensorMagnetic.count >= SENSOR_MAGNETIC_COUNT) {
-			sensorMagnetic.count = 0;
-
-			float avg = 0;
-			for (int i = 0; i < SENSOR_MAGNETIC_COUNT; i++)
-				avg += sensorMagnetic.calcMag[i] / SENSOR_MAGNETIC_COUNT;
-
-	        int result;
-	        varipassWriteFloat(VARIPASS_KEY, VARIPASS_ID_MAGNITUDE, avg, &result);
-	        
-	        if (result == VARIPASS_RESULT_SUCCESS)
-	            ledNotifPulse(PULSE_DONE, &ledSensorICMMag);
-	        else
-	            ledNotifPulse(PULSE_FAIL, &ledSensorICMMag);
-
-	        avg = 0;
-			for (int i = 0; i < SENSOR_MAGNETIC_COUNT; i++)
-				avg += sensorMagnetic.calcInc[i] / SENSOR_MAGNETIC_COUNT;
-
-	        varipassWriteFloat(VARIPASS_KEY, VARIPASS_ID_INCLINATION, avg, &result);
-	        
-	        if (result == VARIPASS_RESULT_SUCCESS)
-	            ledNotifPulse(PULSE_DONE, &ledSensorICMMag);
-	        else
-	            ledNotifPulse(PULSE_FAIL, &ledSensorICMMag);
-		}
+		sensorMagnetic.count++;
 	}
 }
+
+
+
+void processSensorTemperatureUpload() {
+
+	// Measure
+	float val = sht.getTemperature();
+	if (SENSOR_TEMPERATURE_DEBUG)
+		Serial.println("Temperature: " + String(val));
+
+	// Save
+	sensorTemperature.last = val;
+
+	// Upload
+    int result;
+    varipassWriteFloat(VARIPASS_KEY, VARIPASS_ID_TEMPERATURE, val, &result);    
+    if (result == VARIPASS_RESULT_SUCCESS)
+        ledNotifPulse(PULSE_DONE, &ledSensorSHT);
+    else
+        ledNotifPulse(PULSE_FAIL, &ledSensorSHT);
+}
+
+void processSensorHumidityUpload() {
+
+	// Measure
+	float val = sht.getHumidity();
+	if (SENSOR_HUMIDITY_DEBUG)
+		Serial.println("Humidity: " + String(val));
+
+	// Save
+	sensorHumidity.last = val;
+
+	// Upload
+    int result;
+    varipassWriteFloat(VARIPASS_KEY, VARIPASS_ID_HUMIDITY, val, &result);        
+    if (result == VARIPASS_RESULT_SUCCESS)
+        ledNotifPulse(PULSE_DONE, &ledSensorSHT);
+    else
+        ledNotifPulse(PULSE_FAIL, &ledSensorSHT);
+}
+
+void processSensorPressureUpload() {
+	if (sensorPressure.available) {
+
+		// Measure
+		char stat;
+        double temp, pres,p0,a;  
+		stat = bmp.startTemperature();
+        if (stat != 0) {
+            delay(stat);            
+            stat = bmp.getTemperature(temp);
+            if (stat != 0) {                            
+                stat = bmp.startPressure(3);
+                if (stat != 0) {
+                    delay(stat);                    
+                    stat = bmp.getPressure(pres, temp);
+                    if (stat != 0) {   
+                    	float val = (float) bmp.sealevel(pres, SENSOR_PRESSURE_ALTITUDE);   
+						if (SENSOR_PRESSURE_DEBUG)
+							Serial.println("Pressure: " + String(val));
+
+						// Save
+						sensorPressure.last = val;
+
+						// Upload
+						int result;
+				        varipassWriteFloat(VARIPASS_KEY, VARIPASS_ID_PRESSURE, val, &result);				        
+				        if (result == VARIPASS_RESULT_SUCCESS)
+				            ledNotifPulse(PULSE_DONE, &ledSensorBMP);
+				        else
+				            ledNotifPulse(PULSE_FAIL, &ledSensorBMP);
+                    }
+                }
+            }
+        }
+	}
+}
+
+void processSensorAirUpload() {
+	if (sensorAir.available) {
+		if (!ticks.firstUpload) {
+
+			// Process
+			float avgCO2 = 0;
+			float avgVOC = 0;
+
+			for (int i = 0; i < sensorAir.count; i++)
+				avgCO2 += (float) sensorAir.rawCO2[i] / sensorAir.count;		
+			for (int i = 0; i < sensorAir.count; i++)
+				avgVOC += (float) sensorAir.rawVOC[i] / sensorAir.count;
+
+			// Upload
+	        int result;
+	        varipassWriteFloat(VARIPASS_KEY, VARIPASS_ID_CO2, avgCO2, &result);        
+	        if (result == VARIPASS_RESULT_SUCCESS)
+	            ledNotifPulse(PULSE_DONE, &ledSensorSGP);
+	        else
+	            ledNotifPulse(PULSE_FAIL, &ledSensorSGP);
+
+	        varipassWriteFloat(VARIPASS_KEY, VARIPASS_ID_VOC, avgVOC, &result);        
+	        if (result == VARIPASS_RESULT_SUCCESS)
+	            ledNotifPulse(PULSE_DONE, &ledSensorSGP);
+	        else
+	            ledNotifPulse(PULSE_FAIL, &ledSensorSGP);
+
+	        // Base
+	        if (sensorAir.baseEnabled) {
+		        if (sensorAir.baseNext <= 0) {
+		        	sensorAir.baseNext = SENSOR_AIR_BASE_COUNTDOWN;
+
+	    			if (sgp.getIAQBaseline(&sensorAir.baseCO2, &sensorAir.baseVOC)) {
+			    		EEPROM.begin(512);
+			    		eepromWriteUInt16(EEPROM_BASE_CO2, sensorAir.baseCO2);
+			    		eepromWriteUInt16(EEPROM_BASE_VOC, sensorAir.baseVOC);
+			    		EEPROM.commit();
+			    		EEPROM.end();
+	    			}
+	    			else {
+						ledNotifPulse(PULSE_ERRO, &ledSensorSGP);
+	    			}
+		        }
+		        else {
+		        	sensorAir.baseNext--;
+		        }
+		    }
+		}
+
+		sensorAir.count = 0;
+	}
+}
+
+void processSensorLightUpload() {
+	if (sensorLight.available) {
+
+		// Process
+		float avg = 0;
+		for (int i = 0; i < sensorLight.count; i++)
+			avg += (float) sensorLight.raw[i] / sensorLight.count;
+
+		if (SENSOR_LIGHT_LOG) {
+			avg += 1;
+			avg = log(avg);
+		}
+
+		// Upload
+        int result;
+        varipassWriteFloat(VARIPASS_KEY, VARIPASS_ID_LIGHT, avg, &result);        
+        if (result == VARIPASS_RESULT_SUCCESS)
+            ledNotifPulse(PULSE_DONE, &ledSensorAPD);
+        else
+            ledNotifPulse(PULSE_FAIL, &ledSensorAPD);
+
+		sensorLight.count = 0;
+	}
+}
+
+void processSensorMagneticUpload() {
+	if (sensorICM.available) {
+
+		// Process
+		float avgX = 0;
+		float avgY = 0;
+		float avgZ = 0;
+
+		for (int i = 0; i < sensorMagnetic.count; i++) {
+			avgX = sensorMagnetic.rawX[i] / sensorMagnetic.count;
+			avgY = sensorMagnetic.rawY[i] / sensorMagnetic.count;
+			avgZ = sensorMagnetic.rawZ[i] / sensorMagnetic.count;
+		}
+
+		avgX = avgX - (sensorMagneticMin.x + sensorMagneticMax.x) / 2;
+		avgY = avgY - (sensorMagneticMin.y + sensorMagneticMax.y) / 2;
+		avgZ = avgZ - (sensorMagneticMin.z + sensorMagneticMax.z) / 2;
+
+		if (sensorICM.oriEnabled) {
+			assignAxes(&avgX, &avgY, &avgZ, &sensorMagnetic.oriX, &sensorMagnetic.oriY, &sensorMagnetic.oriZ);
+		}
+		else {
+			sensorMagnetic.oriX = avgX;
+			sensorMagnetic.oriY = avgY;
+			sensorMagnetic.oriZ = avgZ;
+		}
+
+		float valMag = sqrt(sq(sensorMagnetic.oriX) + sq(sensorMagnetic.oriY) + sq(sensorMagnetic.oriZ));
+		float valInc = 90 - (acos(sensorMagnetic.oriZ / valMag) * (180 / PI));
+
+		sensorMagnetic.lastMag = valMag;
+		sensorMagnetic.lastInc = valInc;
+
+		// Upload
+        int result;
+        varipassWriteFloat(VARIPASS_KEY, VARIPASS_ID_MAGNITUDE, valMag, &result);
+
+		if (result == VARIPASS_RESULT_SUCCESS)
+	        ledNotifPulse(PULSE_DONE, &ledSensorICMMag);
+        else
+            ledNotifPulse(PULSE_FAIL, &ledSensorICMMag);
+
+        varipassWriteFloat(VARIPASS_KEY, VARIPASS_ID_INCLINATION, valInc, &result);
+        
+        if (result == VARIPASS_RESULT_SUCCESS)
+            ledNotifPulse(PULSE_DONE, &ledSensorICMMag);
+        else
+            ledNotifPulse(PULSE_FAIL, &ledSensorICMMag);
+
+		sensorMagnetic.count = 0;
+	}
+}
+
+
 
 void processButtons() {
     if (digitalRead(PIN_BUTTON_UP) == LOW && digitalRead(PIN_BUTTON_DOWN) == HIGH) {
@@ -669,7 +676,7 @@ void processButtons() {
 
     if (buttonDown.pressed) {
     	if (sensorAir.available) {
-	    	if (buttonDown.counter >= BUTTON_HOLD_TIME) {
+	    	if (buttonDown.counter >= ticks.buttonHoldTime) {
 	    		buttonDown.counter = -1;
 
 	    		processButtonDown();
@@ -680,9 +687,9 @@ void processButtons() {
 	    		buttonDown.counter++;
 	    		float fade = 0;
 	    		if (sensorAir.baseEnabled)
-	    			fade = LED_BUTTON_FADE_MIN + (LED_BUTTON_FADE_MAX - LED_BUTTON_FADE_MIN) * ((float)(BUTTON_HOLD_TIME - buttonDown.counter) / BUTTON_HOLD_TIME);
+	    			fade = LED_BUTTON_FADE_MIN + (LED_BUTTON_FADE_MAX - LED_BUTTON_FADE_MIN) * ((float)(ticks.buttonHoldTime - buttonDown.counter) / ticks.buttonHoldTime);
 	    		else
-	    			fade = LED_BUTTON_FADE_MIN + (LED_BUTTON_FADE_MAX - LED_BUTTON_FADE_MIN) * ((float)buttonDown.counter / BUTTON_HOLD_TIME);
+	    			fade = LED_BUTTON_FADE_MIN + (LED_BUTTON_FADE_MAX - LED_BUTTON_FADE_MIN) * ((float)buttonDown.counter / ticks.buttonHoldTime);
 			    strip.setPixelColor(1, strip.Color(ledButtonDown.r * fade, ledButtonDown.g * fade, ledButtonDown.b * fade));
 			    strip.show();
 	    	}
@@ -691,7 +698,7 @@ void processButtons() {
 
     if (buttonUp.pressed) {
     	if (sensorICM.available) {
-	    	if (buttonUp.counter >= BUTTON_HOLD_TIME) {
+	    	if (buttonUp.counter >= ticks.buttonHoldTime) {
 	    		buttonUp.counter = -1;
 
 	    		processButtonUp();
@@ -702,9 +709,9 @@ void processButtons() {
 	    		buttonUp.counter++;
 	    		float fade = 0;
 	    		if (sensorICM.oriEnabled)
-	    			fade = LED_BUTTON_FADE_MIN + (LED_BUTTON_FADE_MAX - LED_BUTTON_FADE_MIN) * ((float)(BUTTON_HOLD_TIME - buttonUp.counter) / BUTTON_HOLD_TIME);
+	    			fade = LED_BUTTON_FADE_MIN + (LED_BUTTON_FADE_MAX - LED_BUTTON_FADE_MIN) * ((float)(ticks.buttonHoldTime - buttonUp.counter) / ticks.buttonHoldTime);
 	    		else
-	    			fade = LED_BUTTON_FADE_MIN + (LED_BUTTON_FADE_MAX - LED_BUTTON_FADE_MIN) * ((float)buttonUp.counter / BUTTON_HOLD_TIME);
+	    			fade = LED_BUTTON_FADE_MIN + (LED_BUTTON_FADE_MAX - LED_BUTTON_FADE_MIN) * ((float)buttonUp.counter / ticks.buttonHoldTime);
 			    strip.setPixelColor(1, strip.Color(ledButtonUp.r * fade, ledButtonUp.g * fade, ledButtonUp.b * fade));
 			    strip.show();
 	    	}
@@ -712,7 +719,7 @@ void processButtons() {
     }
 
     else if (buttonBoth.pressed) {
-    	if (buttonBoth.counter >= BUTTON_HOLD_TIME) {
+    	if (buttonBoth.counter >= ticks.buttonHoldTime) {
     		buttonBoth.counter = -1;
 
     		processButtonBoth();
@@ -721,7 +728,7 @@ void processButtons() {
     	}
     	else if (buttonBoth.counter >= 0) {
     		buttonBoth.counter++;
-    		float fade = LED_BUTTON_FADE_MIN + (LED_BUTTON_FADE_MAX - LED_BUTTON_FADE_MIN) * ((float)buttonBoth.counter / BUTTON_HOLD_TIME);
+    		float fade = LED_BUTTON_FADE_MIN + (LED_BUTTON_FADE_MAX - LED_BUTTON_FADE_MIN) * ((float)buttonBoth.counter / ticks.buttonHoldTime);
 		    strip.setPixelColor(1, strip.Color(ledButtonBoth.r * fade, ledButtonBoth.g * fade, ledButtonBoth.b * fade));
 		    strip.show();
     	}
@@ -942,12 +949,15 @@ void processButtonBoth() {
     		ssid[i] = '+';
     }
 
-
     url += "&wifi_ssid=" + ssid;
     url += "&wifi_ip=" + String(ip[0]) + '.' + String(ip[1]) + '.' + String(ip[2]) + '.' + String(ip[3]);
-    url += "&temperature_raw=" + String(sensorTemperature.last);
-    url += "&humidity_raw=" + String(sensorHumidity.last);
-	if (sensorPressure.available) {
+    url += "&first_upload=" + String(ticks.firstUpload);
+    url += "&tick_sample=" + String(ticks.tickUploadCounter);
+    if (!ticks.firstUpload) {
+    	url += "&temperature_raw=" + String(sensorTemperature.last);
+    	url += "&humidity_raw=" + String(sensorHumidity.last);
+    }
+	if (sensorPressure.available && !ticks.firstUpload) {
 	    url += "&pressure_raw=" + String(sensorPressure.last);
 	}
 	if (sensorAir.available) {
@@ -955,7 +965,7 @@ void processButtonBoth() {
 	    url += "&voc_raw=" + String(sensorAir.lastVOC);
 	    url += "&air_base_enabled=" + String(sensorAir.baseEnabled);
 	    if (sensorAir.baseEnabled) {
-	    	url += "&air_base_next=" + String((sensorAir.baseNext - millis()) / 1000);
+	    	url += "&air_base_next=" + String(sensorAir.baseNext);
 		    url += "&air_base_co2=0x" + String(sensorAir.baseCO2, HEX);
 		    url += "&air_base_voc=0x" + String(sensorAir.baseVOC, HEX);
 		}
@@ -992,20 +1002,68 @@ void processButtonBoth() {
 	    	else
 	    		url += "&icm_ori_z=" + String(sensorICM.oriZ);
 	    }
-	    url += "&magnetic_x_raw=" + String(sensorMagnetic.rawX);
-	    url += "&magnetic_y_raw=" + String(sensorMagnetic.rawY);
-	    url += "&magnetic_z_raw=" + String(sensorMagnetic.rawZ);
-	    if (sensorICM.oriEnabled) {
-	    	url += "&magnetic_x_ori=" + String(sensorMagnetic.oriX);
-	    	url += "&magnetic_y_ori=" + String(sensorMagnetic.oriY);
-	    	url += "&magnetic_z_ori=" + String(sensorMagnetic.oriZ);
-	    }
-	    url += "&magnetic_magnitude=" + String(sensorMagnetic.lastMag);
-	    url += "&magnetic_inclination=" + String(sensorMagnetic.lastInc);
+	    url += "&magnetic_x_raw=" + String(sensorMagnetic.lastX);
+	    url += "&magnetic_y_raw=" + String(sensorMagnetic.lastY);
+	    url += "&magnetic_z_raw=" + String(sensorMagnetic.lastZ);
+	    if (!ticks.firstUpload) {
+		    if (sensorICM.oriEnabled) {
+		    	url += "&magnetic_x_ori=" + String(sensorMagnetic.oriX);
+		    	url += "&magnetic_y_ori=" + String(sensorMagnetic.oriY);
+		    	url += "&magnetic_z_ori=" + String(sensorMagnetic.oriZ);
+		    }
+		    url += "&magnetic_magnitude=" + String(sensorMagnetic.lastMag);
+		    url += "&magnetic_inclination=" + String(sensorMagnetic.lastInc);
+		}
 
 	}
 
     openURL(url);
+}
+
+
+
+
+void processLEDPower() {
+    if (ledPower.step >= LED_POWER_STEP) {
+        ledPower.step = 0;
+
+        if (ledPower.counter == 0) {
+            ledPower.stepper.r = (ledPowerStopB.r - ledPower.led.r) / ledPower.div;
+            ledPower.stepper.g = (ledPowerStopB.g - ledPower.led.g) / ledPower.div;
+            ledPower.stepper.b = (ledPowerStopB.b - ledPower.led.b) / ledPower.div;
+        }
+        else if (ledPower.counter == ledPower.div) {
+            ledPower.stepper.r = (ledPowerStopC.r - ledPower.led.r) / ledPower.div;
+            ledPower.stepper.g = (ledPowerStopC.g - ledPower.led.g) / ledPower.div;
+            ledPower.stepper.b = (ledPowerStopC.b - ledPower.led.b) / ledPower.div;
+        }
+        else if (ledPower.counter == ledPower.div * 2) {
+            ledPower.stepper.r = (ledPowerStopD.r - ledPower.led.r) / ledPower.div;
+            ledPower.stepper.g = (ledPowerStopD.g - ledPower.led.g) / ledPower.div;
+            ledPower.stepper.b = (ledPowerStopD.b - ledPower.led.b) / ledPower.div;
+        }
+        else if (ledPower.counter == ledPower.div * 3) {
+            ledPower.stepper.r = (ledPowerStopA.r - ledPower.led.r) / ledPower.div;
+            ledPower.stepper.g = (ledPowerStopA.g - ledPower.led.g) / ledPower.div;
+            ledPower.stepper.b = (ledPowerStopA.b - ledPower.led.b) / ledPower.div;
+        }
+        
+        ledPower.led.r += ledPower.stepper.r;
+        ledPower.led.g += ledPower.stepper.g;
+        ledPower.led.b += ledPower.stepper.b;
+
+        ledPower.counter++;
+        if (ledPower.counter >= ledPower.div * 4)
+            ledPower.counter = 0;
+        
+        if (intensity == -1)
+        	strip.setPixelColor(0, strip.Color(ledLowColor.r, ledLowColor.g, ledLowColor.b));
+        else
+        	strip.setPixelColor(0, strip.Color(ledPower.led.r * intensity, ledPower.led.g * intensity, ledPower.led.b * intensity));
+        strip.show();
+    }
+    
+    ledPower.step++;
 }
 
 
@@ -1216,10 +1274,8 @@ void setup() {
 }
 
 void loop() {
-	processLEDPower();
-
 	if (!LED_COLOR_DEBUG) {
-		processSensors();
+		processTicks();
 		processButtons();
 
 		if (WiFi.status() != WL_CONNECTED) {
@@ -1230,7 +1286,9 @@ void loop() {
 		strip.setPixelColor(1, strip.Color(ledDebug.r, ledDebug.g, ledDebug.b)); 
 		strip.show(); 
 	}
+
+	processLEDPower();
 	    
-	delay(1);
+	delay(ticks.tickMicroDelay);
 }
 

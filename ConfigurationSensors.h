@@ -2,10 +2,6 @@
  * Temperature Configuration
  *******/
 
-/* Duration of a single sample in ms. */
-#define SENSOR_TEMPERATURE_SAMPLE 1000
-/* Total number of samples. */
-#define SENSOR_TEMPERATURE_COUNT  60
 /* Write debug info for the sensor. */
 #define SENSOR_TEMPERATURE_DEBUG  false
 
@@ -13,10 +9,6 @@
  * Humidity Configuration
  *******/
 
-/* Duration of a single sample in ms. */
-#define SENSOR_HUMIDITY_SAMPLE 1000
-/* Total number of samples. */
-#define SENSOR_HUMIDITY_COUNT  60
 /* Write debug info for the sensor. */
 #define SENSOR_HUMIDITY_DEBUG  false
 
@@ -24,10 +16,6 @@
  * Pressure Configuration
  *******/
 
-/* Duration of a single sample in ms. */
-#define SENSOR_PRESSURE_SAMPLE 1000
-/* Total number of samples. */
-#define SENSOR_PRESSURE_COUNT  60
 /* Assumed altitude of the device in meters. Required for an accurate reading. */
 #define SENSOR_PRESSURE_ALTITUDE 123
 /* Write debug info for the sensor. */
@@ -37,23 +25,15 @@
  * Air Configuration
  *******/
 
-/* Duration of a single sample in ms. */
-#define SENSOR_AIR_SAMPLE 1000
-/* Total number of samples. */
-#define SENSOR_AIR_COUNT  60
 /* Write debug info for the sensor. */
 #define SENSOR_AIR_DEBUG  false
-/* Seconds between individual writes of baseline to EEPROM if enabled. */
-#define SENSOR_AIR_BASE_COUNTDOWN 3600
+/* Upload ticks between individual writes of baseline to EEPROM if enabled. */
+#define SENSOR_AIR_BASE_COUNTDOWN 60
 
 /********
  * Light Configuration
  *******/
 
-/* Duration of a single sample in ms. */
-#define SENSOR_LIGHT_SAMPLE 100
-/* Total number of samples. */
-#define SENSOR_LIGHT_COUNT  600
 /* Gain of the light sensor. Use one of the following: AGAIN_1X, AGAIN_4X, AGAIN_16X, AGAIN_64X */
 #define SENSOR_LIGHT_GAIN   AGAIN_64X
 /* Perform natural log postprocessing on the data before sending it to VariPass. */
@@ -65,10 +45,6 @@
  * Magnetic Configuration
  *******/
 
-/* Duration of a single sample in ms. */
-#define SENSOR_MAGNETIC_SAMPLE 100
-/* Total number of samples. */
-#define SENSOR_MAGNETIC_COUNT  600
 /* Write debug info for the sensor. */
 #define SENSOR_MAGNETIC_DEBUG  false
 /* Magnetic calibration values. */
