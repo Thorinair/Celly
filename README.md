@@ -21,4 +21,4 @@ The sensors installed in Celly are the following:
 - APDS9960
 - ICM-20948
 
-Celly was primarily designed to look good AND serve the functionality. Inspired by *My Little Pony: Friendship is Magic*'s character Princess Celestia, the device uses an upper RGB LED to signify the power state, flowing in the colors of her mane. THe lower RGB LED signifies whether the device is sending data to VariPass. On successful sends, the LED flashes in the colors of the Mane 6. Both LEDs change their intensity depending on the ambient lighting in order to not be too obtrusive during night time.
+Celly was primarily designed to look good AND serve the functionality. Inspired by *My Little Pony: Friendship is Magic*'s character Princess Celestia, the device uses an upper RGB LED to signify the power state, flowing in the colors of her mane. The lower RGB LED signifies whether the device is sending data to VariPass. On successful sends, the LED flashes in the colors of the Mane 6. Both LEDs change their intensity depending on the ambient lighting in order to not be too obtrusive during night time.
