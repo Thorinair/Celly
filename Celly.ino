@@ -19,6 +19,7 @@
 #include "ConfigurationSensors.h"
 #include "ConfigurationVariPass.h"
 #include "ConfigurationLuna.h"
+#include "ConfigurationWiFi.h"
 
 #define max(a,b) ((a) > (b) ? (a) :  (b))
 #define abs(x)   ((x) >  0  ? (x) : -(x))
@@ -659,9 +660,9 @@ void processSensorMagneticUpload() {
 		float avgZ = 0;
 
 		for (int i = 0; i < sensorMagnetic.count; i++) {
-			avgX = sensorMagnetic.rawX[i] / sensorMagnetic.count;
-			avgY = sensorMagnetic.rawY[i] / sensorMagnetic.count;
-			avgZ = sensorMagnetic.rawZ[i] / sensorMagnetic.count;
+			avgX += sensorMagnetic.rawX[i] / sensorMagnetic.count;
+			avgY += sensorMagnetic.rawY[i] / sensorMagnetic.count;
+			avgZ += sensorMagnetic.rawZ[i] / sensorMagnetic.count;
 		}
 
 		avgX = avgX - (sensorMagneticMin.x + sensorMagneticMax.x) / 2;
@@ -1416,7 +1417,7 @@ void setup() {
     	setupSensors();
     	setupPreConnect();
 		connectWiFi(true);
-		openURL(String(LUNA_URL_BOOT) + "&key=" + String(LUNA_KEY) + "&device=celly");
+		openURL(String(LUNA_URL_BOOT) + "&key=" + String(LUNA_KEY) + "&device=" + String(WIFI_HOST));
 	}
 
 }
