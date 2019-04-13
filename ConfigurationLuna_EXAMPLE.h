@@ -10,7 +10,10 @@
 #define LUNA_KEY "aaaaaaaaaaaaaaaa0000000000000000"
 
 /* URL called to dump sensor data. */
-#define LUNA_URL "/?action=celly"
+#define LUNA_URL_DEBUG "/?action=celly"
+
+/* URL called to dump boot data. */
+#define LUNA_URL_BOOT  "/?action=boot"
 
 /* Debug the URL opening procedure. */
 #define LUNA_DEBUG false

@@ -47,6 +47,7 @@
 /* LEDs */
 Adafruit_NeoPixel strip = Adafruit_NeoPixel(2, PIN_PIXEL, NEO_GRB + NEO_KHZ800);
 float intensity = 1.0;
+bool firstBoot = true;
 
 struct LEDPower {
 	RGB led {ledPowerStopA.r, ledPowerStopA.g, ledPowerStopA.b};
@@ -1072,7 +1073,7 @@ void processButtonDown() {
 }
 
 void processButtonBoth() {
-    String url = String(LUNA_URL) + "&key=" + String(LUNA_KEY);
+    String url = String(LUNA_URL_DEBUG) + "&key=" + String(LUNA_KEY);
     String ssid = WiFi.SSID();
     IPAddress ip = WiFi.localIP();
     for (int i = 0; i < ssid.length(); i++) {
@@ -1414,6 +1415,8 @@ void setup() {
     	setupPins();
     	setupSensors();
     	setupPreConnect();
+		connectWiFi(true);
+		openURL(String(LUNA_URL_BOOT) + "&key=" + String(LUNA_KEY) + "&device=celly");
 	}
 
 }
