@@ -124,13 +124,28 @@ struct SensorMagnetic {
 	float lastX = 0;
 	float lastY = 0;
 	float lastZ = 0;
-	float oriX = 0;
-	float oriY = 0;
-	float oriZ = 0;
+	float avgX = 0;
+	float avgY = 0;
+	float avgZ = 0;
 	float lastMag = 0;
 	float lastInc = 0;
 	int count = 0;
 } sensorMagnetic;
+
+struct SensorVibration {
+	float accX[TICK_SAMPLE_COUNT] = {0};
+	float accY[TICK_SAMPLE_COUNT] = {0};
+	float accZ[TICK_SAMPLE_COUNT] = {0};
+	float rawX[TICK_UPLOAD_COUNT] = {0};
+	float rawY[TICK_UPLOAD_COUNT] = {0};
+	float rawZ[TICK_UPLOAD_COUNT] = {0};
+	float lastX = 0;
+	float lastY = 0;
+	float lastZ = 0;
+	float avgX = 0;
+	float avgY = 0;
+	float avgZ = 0;
+} sensorVibration;
 
 
 
@@ -590,16 +605,16 @@ void processSensorMagneticUpload() {
 		avgZ = avgZ - (sensorMagneticMin.z + sensorMagneticMax.z) / 2;
 
 		if (sensorICM.oriEnabled) {
-			assignAxes(&avgX, &avgY, &avgZ, &sensorMagnetic.oriX, &sensorMagnetic.oriY, &sensorMagnetic.oriZ);
+			assignAxes(&avgX, &avgY, &avgZ, &sensorMagnetic.avgX, &sensorMagnetic.avgY, &sensorMagnetic.avgZ);
 		}
 		else {
-			sensorMagnetic.oriX = avgX;
-			sensorMagnetic.oriY = avgY;
-			sensorMagnetic.oriZ = avgZ;
+			sensorMagnetic.avgX = avgX;
+			sensorMagnetic.avgY = avgY;
+			sensorMagnetic.avgZ = avgZ;
 		}
 
-		float valMag = sqrt(sq(sensorMagnetic.oriX) + sq(sensorMagnetic.oriY) + sq(sensorMagnetic.oriZ));
-		float valInc = 90 - (acos(sensorMagnetic.oriZ / valMag) * (180 / PI));
+		float valMag = sqrt(sq(sensorMagnetic.avgX) + sq(sensorMagnetic.avgY) + sq(sensorMagnetic.avgZ));
+		float valInc = 90 - (acos(sensorMagnetic.avgZ / valMag) * (180 / PI));
 
 		sensorMagnetic.lastMag = valMag;
 		sensorMagnetic.lastInc = valInc;
@@ -1006,11 +1021,9 @@ void processButtonBoth() {
 	    url += "&magnetic_y_raw=" + String(sensorMagnetic.lastY);
 	    url += "&magnetic_z_raw=" + String(sensorMagnetic.lastZ);
 	    if (!ticks.firstUpload) {
-		    if (sensorICM.oriEnabled) {
-		    	url += "&magnetic_x_ori=" + String(sensorMagnetic.oriX);
-		    	url += "&magnetic_y_ori=" + String(sensorMagnetic.oriY);
-		    	url += "&magnetic_z_ori=" + String(sensorMagnetic.oriZ);
-		    }
+	    	url += "&magnetic_x_avg=" + String(sensorMagnetic.avgX);
+	    	url += "&magnetic_y_avg=" + String(sensorMagnetic.avgY);
+	    	url += "&magnetic_z_avg=" + String(sensorMagnetic.avgZ);
 		    url += "&magnetic_magnitude=" + String(sensorMagnetic.lastMag);
 		    url += "&magnetic_inclination=" + String(sensorMagnetic.lastInc);
 		}
@@ -1062,7 +1075,7 @@ void processLEDPower() {
         	strip.setPixelColor(0, strip.Color(ledPower.led.r * intensity, ledPower.led.g * intensity, ledPower.led.b * intensity));
         strip.show();
     }
-    
+
     ledPower.step++;
 }
 
