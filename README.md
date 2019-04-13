@@ -1,5 +1,5 @@
 # Celly
-Celly is an ESP8266-powered combination of various sensors designed to analyze send environmental measurements to [VariPass](https://varipass.org/). The sensors gather various measurements related to the room and the environment the device is located in:
+Celly is an ESP8266-powered combination of various sensors designed to analyze and send environmental measurements to [VariPass](https://varipass.org/). The sensors gather various measurements related to the room and the environment the device is located in:
 - Temperature
 - Humidity
 - Pressure
