@@ -81,7 +81,5 @@ Vector sensorMagneticMax      {  11.25,  91.35,  87.45};
 #define SENSOR_VIBRATION_HIGHPASS    0.1
 /* Gain to use for better vibration detection. */
 #define SENSOR_VIBRATION_GAIN        10
-/* The sensitivity used for final calculation. Hisher is less sensitive. */
-#define SENSOR_VIBRATION_SENSITIVITY 20
 /* Write debug info for the sensor. */
 #define SENSOR_VIBRATION_DEBUG       false
