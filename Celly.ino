@@ -1188,8 +1188,8 @@ void processButtonBoth() {
 	    url += "&pressure_raw=" + String(sensorPressure.last, 2);
 	}
 	if (sensorAir.available) {
-	    url += "&co2_raw=" + String(sensorAir.lastCO2, 4);
-	    url += "&voc_raw=" + String(sensorAir.lastVOC, 4);
+	    url += "&co2_raw=" + String(sensorAir.lastCO2);
+	    url += "&voc_raw=" + String(sensorAir.lastVOC);
 	    url += "&air_base_enabled=" + String(sensorAir.baseEnabled);
 	    if (sensorAir.baseEnabled) {
 	    	url += "&air_base_next=" + String(sensorAir.baseNext);
@@ -1198,7 +1198,7 @@ void processButtonBoth() {
 		}
 	}
 	if (sensorLight.available) {
-	    url += "&light_raw=" + String(sensorLight.last, 4);
+	    url += "&light_raw=" + String(sensorLight.last);
 	    url += "&light_log=" + String(log(sensorLight.last), 4);
 	}
 	if (sensorICM.available) {
