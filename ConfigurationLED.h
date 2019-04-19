@@ -63,6 +63,7 @@ RGB ledSensorSGP       {192, 64, 0};
 RGB ledSensorAPD       {128, 128, 128};
 RGB ledSensorICMMag    {96, 16, 255};
 RGB ledSensorICMVib    {160, 32, 48};
+RGB ledSensorICMGrv    {0, 0, 255};
 
 RGB ledButtonUp        {96, 16, 255};
 RGB ledButtonDown      {192, 64, 0};

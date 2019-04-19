@@ -83,3 +83,10 @@ Vector sensorMagneticMax      {  11.25,  91.35,  87.45};
 #define SENSOR_VIBRATION_GAIN        10
 /* Write debug info for the sensor. */
 #define SENSOR_VIBRATION_DEBUG       false
+
+/********
+ * Gravity Configuration
+ *******/
+
+/* Write debug info for the sensor. */
+#define SENSOR_GRAVITY_DEBUG false

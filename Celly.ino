@@ -114,9 +114,6 @@ DPEng_ICM20948 icm = DPEng_ICM20948(0x948A, 0x948B, 0x948C);
 
 struct SensorICM {
 	bool available = false;
-	float magX[TICK_UPLOAD_COUNT] = {0};
-	float magY[TICK_UPLOAD_COUNT] = {0};
-	float magZ[TICK_UPLOAD_COUNT] = {0};
 	float accX[TICK_SAMPLE_COUNT] = {0};
 	float accY[TICK_SAMPLE_COUNT] = {0};
 	float accZ[TICK_SAMPLE_COUNT] = {0};
@@ -124,9 +121,13 @@ struct SensorICM {
 	char oriX = 'X';
 	char oriY = 'Y';
 	char oriZ = 'Z';
+	int micro = 0;
 } sensorICM;
 
 struct SensorMagnetic {
+	float rawX[TICK_UPLOAD_COUNT] = {0};
+	float rawY[TICK_UPLOAD_COUNT] = {0};
+	float rawZ[TICK_UPLOAD_COUNT] = {0};
 	float lastX = 0;
 	float lastY = 0;
 	float lastZ = 0;
@@ -149,9 +150,21 @@ struct SensorVibration {
 	float avgX = 0;
 	float avgY = 0;
 	float avgZ = 0;
-	int micro = 0;
 	int count = 0;
 } sensorVibration;
+
+struct SensorGravity {
+	float rawX[TICK_UPLOAD_COUNT] = {0};
+	float rawY[TICK_UPLOAD_COUNT] = {0};
+	float rawZ[TICK_UPLOAD_COUNT] = {0};
+	float lastX = 0;
+	float lastY = 0;
+	float lastZ = 0;
+	float avgX = 0;
+	float avgY = 0;
+	float avgZ = 0;
+	int count = 0;	
+} sensorGravity;
 
 
 
@@ -194,6 +207,7 @@ void processSensorAirSample();
 void processSensorLightSample();
 void processSensorMagneticSample();
 void processSensorVibrationSample();
+void processSensorGravitySample();
 
 void processSensorTemperatureUpload();
 void processSensorHumidityUpload();
@@ -202,6 +216,7 @@ void processSensorAirUpload();
 void processSensorLightUpload();
 void processSensorMagneticUpload();
 void processSensorVibrationUpload();
+void processSensorGravityUpload();
 
 void processButtons();
 void processButtonUp();
@@ -341,6 +356,7 @@ void processTicks() {
 		processSensorLightSample();
 		processSensorMagneticSample();
 		processSensorVibrationSample();
+		processSensorGravitySample();
 
 		ticks.tickUploadCounter++;
 		if (ticks.tickUploadCounter >= TICK_UPLOAD_COUNT) {
@@ -354,6 +370,7 @@ void processTicks() {
 			processSensorLightUpload();
 			processSensorMagneticUpload();
 			processSensorVibrationUpload();
+			processSensorGravityUpload();
 
 			if (ticks.firstUpload)
 				ticks.firstUpload = false;
@@ -371,11 +388,11 @@ void processSensorVibationMicro() {
 		icm.getEventAcc(&aevent);
 
 		// Save
-		sensorICM.accX[sensorVibration.micro] = aevent.acceleration.x;
-		sensorICM.accY[sensorVibration.micro] = aevent.acceleration.y;
-		sensorICM.accZ[sensorVibration.micro] = aevent.acceleration.z;
+		sensorICM.accX[sensorICM.micro] = aevent.acceleration.x;
+		sensorICM.accY[sensorICM.micro] = aevent.acceleration.y;
+		sensorICM.accZ[sensorICM.micro] = aevent.acceleration.z;
 
-		sensorVibration.micro++;
+		sensorICM.micro++;
 	}
 }
 
@@ -442,9 +459,9 @@ void processSensorMagneticSample() {
 			Serial.println("Magnetic: " + String(valX) + ", " + String(valY) + ", " + String(valZ));
 
 		// Save
-		sensorICM.magX[sensorMagnetic.count] = valX;
-		sensorICM.magY[sensorMagnetic.count] = valY;
-		sensorICM.magZ[sensorMagnetic.count] = valZ;
+		sensorMagnetic.rawX[sensorMagnetic.count] = valX;
+		sensorMagnetic.rawY[sensorMagnetic.count] = valY;
+		sensorMagnetic.rawZ[sensorMagnetic.count] = valZ;
 		sensorMagnetic.lastX = valX;
 		sensorMagnetic.lastY = valY;
 		sensorMagnetic.lastZ = valZ;
@@ -463,7 +480,7 @@ void processSensorVibrationSample() {
 		sensorVibration.rawY[sensorVibration.count] = 0;
 		sensorVibration.rawZ[sensorVibration.count] = 0;
 
-		for (int i = 0; i < sensorVibration.micro; i++) {
+		for (int i = 0; i < sensorICM.micro; i++) {
 			if (i == 0) {
 				cutX = sensorICM.accX[i];
 				cutY = sensorICM.accY[i];
@@ -479,9 +496,9 @@ void processSensorVibrationSample() {
 			valY = sensorICM.accY[i] - cutY;
 			valZ = sensorICM.accZ[i] - cutZ;
 
-			sensorVibration.rawX[sensorVibration.count] += sq(valX * SENSOR_VIBRATION_GAIN) / sensorVibration.micro;
-			sensorVibration.rawY[sensorVibration.count] += sq(valY * SENSOR_VIBRATION_GAIN) / sensorVibration.micro;
-			sensorVibration.rawZ[sensorVibration.count] += sq(valZ * SENSOR_VIBRATION_GAIN) / sensorVibration.micro;
+			sensorVibration.rawX[sensorVibration.count] += sq(valX * SENSOR_VIBRATION_GAIN) / sensorICM.micro;
+			sensorVibration.rawY[sensorVibration.count] += sq(valY * SENSOR_VIBRATION_GAIN) / sensorICM.micro;
+			sensorVibration.rawZ[sensorVibration.count] += sq(valZ * SENSOR_VIBRATION_GAIN) / sensorICM.micro;
 		}
 
 		// Save
@@ -492,8 +509,36 @@ void processSensorVibrationSample() {
 			Serial.println("Vibration: " + String(sensorVibration.lastX) + ", " + String(sensorVibration.lastY) + ", " + String(sensorVibration.lastZ));
 
 		sensorVibration.count++;
-		sensorVibration.micro = 0;
 	}
+}
+
+void processSensorGravitySample() {
+	if (sensorICM.available) {
+
+		// Process
+		float cutX, cutY, cutZ;
+		float valX, valY, valZ;
+		sensorGravity.rawX[sensorVibration.count] = 0;
+		sensorGravity.rawY[sensorVibration.count] = 0;
+		sensorGravity.rawZ[sensorVibration.count] = 0;
+
+		for (int i = 0; i < sensorICM.micro; i++) {
+			sensorGravity.rawX[sensorGravity.count] += sensorICM.accX[i] / sensorICM.micro;
+			sensorGravity.rawY[sensorGravity.count] += sensorICM.accY[i] / sensorICM.micro;
+			sensorGravity.rawZ[sensorGravity.count] += sensorICM.accZ[i] / sensorICM.micro;
+		}
+
+		// Save
+		sensorGravity.lastX = sensorGravity.rawX[sensorGravity.count];
+		sensorGravity.lastY = sensorGravity.rawY[sensorGravity.count];
+		sensorGravity.lastZ = sensorGravity.rawZ[sensorGravity.count];
+		if (SENSOR_GRAVITY_DEBUG)
+			Serial.println("Gravity: " + String(sensorGravity.lastX) + ", " + String(sensorGravity.lastY) + ", " + String(sensorGravity.lastZ));
+
+		sensorGravity.count++;
+	}
+
+	sensorICM.micro = 0;
 }
 
 
@@ -660,9 +705,9 @@ void processSensorMagneticUpload() {
 		float avgZ = 0;
 
 		for (int i = 0; i < sensorMagnetic.count; i++) {
-			avgX += sensorICM.magX[i] / sensorMagnetic.count;
-			avgY += sensorICM.magY[i] / sensorMagnetic.count;
-			avgZ += sensorICM.magZ[i] / sensorMagnetic.count;
+			avgX += sensorMagnetic.rawX[i] / sensorMagnetic.count;
+			avgY += sensorMagnetic.rawY[i] / sensorMagnetic.count;
+			avgZ += sensorMagnetic.rawZ[i] / sensorMagnetic.count;
 		}
 
 		avgX = avgX - (sensorMagneticMin.x + sensorMagneticMax.x) / 2;
@@ -754,6 +799,55 @@ void processSensorVibrationUpload() {
             ledNotifPulse(PULSE_FAIL, &ledSensorICMVib);
 
 		sensorVibration.count = 0;
+	}
+}
+
+void processSensorGravityUpload() {
+	if (sensorICM.available) {
+
+		// Process
+		float avgX = 0;
+		float avgY = 0;
+		float avgZ = 0;
+		for(int i = 0; i < sensorGravity.count; i++) {
+			avgX += sensorGravity.rawX[i] / sensorGravity.count;
+			avgY += sensorGravity.rawY[i] / sensorGravity.count;
+			avgZ += sensorGravity.rawZ[i] / sensorGravity.count;
+		}
+
+		if (sensorICM.oriEnabled) {
+			assignAxes(&avgX, &avgY, &avgZ, &sensorGravity.avgX, &sensorGravity.avgY, &sensorGravity.avgZ);
+		}
+		else {
+			sensorGravity.avgX = avgX;
+			sensorGravity.avgY = avgY;
+			sensorGravity.avgZ = avgZ;
+		}
+
+		// Upload
+        int result;
+        varipassWriteFloat(VARIPASS_KEY, VARIPASS_ID_GRAVITY_X, sensorGravity.avgX, &result);
+
+		if (result == VARIPASS_RESULT_SUCCESS)
+	        ledNotifPulse(PULSE_DONE, &ledSensorICMGrv);
+        else
+            ledNotifPulse(PULSE_FAIL, &ledSensorICMGrv);
+
+        varipassWriteFloat(VARIPASS_KEY, VARIPASS_ID_GRAVITY_Y, sensorGravity.avgY, &result);
+
+		if (result == VARIPASS_RESULT_SUCCESS)
+	        ledNotifPulse(PULSE_DONE, &ledSensorICMGrv);
+        else
+            ledNotifPulse(PULSE_FAIL, &ledSensorICMGrv);
+
+        varipassWriteFloat(VARIPASS_KEY, VARIPASS_ID_GRAVITY_Z, sensorGravity.avgZ, &result);
+
+		if (result == VARIPASS_RESULT_SUCCESS)
+	        ledNotifPulse(PULSE_DONE, &ledSensorICMGrv);
+        else
+            ledNotifPulse(PULSE_FAIL, &ledSensorICMGrv);
+
+		sensorGravity.count = 0;
 	}
 }
 
