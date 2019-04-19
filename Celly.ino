@@ -114,6 +114,12 @@ DPEng_ICM20948 icm = DPEng_ICM20948(0x948A, 0x948B, 0x948C);
 
 struct SensorICM {
 	bool available = false;
+	float magX[TICK_UPLOAD_COUNT] = {0};
+	float magY[TICK_UPLOAD_COUNT] = {0};
+	float magZ[TICK_UPLOAD_COUNT] = {0};
+	float accX[TICK_SAMPLE_COUNT] = {0};
+	float accY[TICK_SAMPLE_COUNT] = {0};
+	float accZ[TICK_SAMPLE_COUNT] = {0};
 	bool oriEnabled = false;
 	char oriX = 'X';
 	char oriY = 'Y';
@@ -121,9 +127,6 @@ struct SensorICM {
 } sensorICM;
 
 struct SensorMagnetic {
-	float rawX[TICK_UPLOAD_COUNT] = {0};
-	float rawY[TICK_UPLOAD_COUNT] = {0};
-	float rawZ[TICK_UPLOAD_COUNT] = {0};
 	float lastX = 0;
 	float lastY = 0;
 	float lastZ = 0;
@@ -137,9 +140,6 @@ struct SensorMagnetic {
 
 struct SensorVibration {
 	float lowCut = (2 * PI * ((float)TICK_MICRO_TIME/1000) * SENSOR_VIBRATION_HIGHPASS) / (2 * PI * ((float)TICK_MICRO_TIME/1000) * SENSOR_VIBRATION_HIGHPASS + 1);
-	float accX[TICK_SAMPLE_COUNT] = {0};
-	float accY[TICK_SAMPLE_COUNT] = {0};
-	float accZ[TICK_SAMPLE_COUNT] = {0};
 	float rawX[TICK_UPLOAD_COUNT] = {0};
 	float rawY[TICK_UPLOAD_COUNT] = {0};
 	float rawZ[TICK_UPLOAD_COUNT] = {0};
@@ -371,9 +371,9 @@ void processSensorVibationMicro() {
 		icm.getEventAcc(&aevent);
 
 		// Save
-		sensorVibration.accX[sensorVibration.micro] = aevent.acceleration.x;
-		sensorVibration.accY[sensorVibration.micro] = aevent.acceleration.y;
-		sensorVibration.accZ[sensorVibration.micro] = aevent.acceleration.z;
+		sensorICM.accX[sensorVibration.micro] = aevent.acceleration.x;
+		sensorICM.accY[sensorVibration.micro] = aevent.acceleration.y;
+		sensorICM.accZ[sensorVibration.micro] = aevent.acceleration.z;
 
 		sensorVibration.micro++;
 	}
@@ -436,15 +436,15 @@ void processSensorMagneticSample() {
 		icm.getEventMag(&mevent);
 
 		float valX = mevent.magnetic.x;
-		float valY = -mevent.magnetic.y;
-		float valZ = -mevent.magnetic.z;
+		float valY = mevent.magnetic.y;
+		float valZ = mevent.magnetic.z;
 		if (SENSOR_MAGNETIC_DEBUG)
 			Serial.println("Magnetic: " + String(valX) + ", " + String(valY) + ", " + String(valZ));
 
 		// Save
-		sensorMagnetic.rawX[sensorMagnetic.count] = valX;
-		sensorMagnetic.rawY[sensorMagnetic.count] = valY;
-		sensorMagnetic.rawZ[sensorMagnetic.count] = valZ;
+		sensorICM.magX[sensorMagnetic.count] = valX;
+		sensorICM.magY[sensorMagnetic.count] = valY;
+		sensorICM.magZ[sensorMagnetic.count] = valZ;
 		sensorMagnetic.lastX = valX;
 		sensorMagnetic.lastY = valY;
 		sensorMagnetic.lastZ = valZ;
@@ -465,19 +465,19 @@ void processSensorVibrationSample() {
 
 		for (int i = 0; i < sensorVibration.micro; i++) {
 			if (i == 0) {
-				cutX = sensorVibration.accX[i];
-				cutY = sensorVibration.accY[i];
-				cutZ = sensorVibration.accZ[i];
+				cutX = sensorICM.accX[i];
+				cutY = sensorICM.accY[i];
+				cutZ = sensorICM.accZ[i];
 			}
 			else {
-				cutX = cutX * (1 - sensorVibration.lowCut) + sensorVibration.accX[i] * sensorVibration.lowCut;
-				cutY = cutY * (1 - sensorVibration.lowCut) + sensorVibration.accY[i] * sensorVibration.lowCut;
-				cutZ = cutZ * (1 - sensorVibration.lowCut) + sensorVibration.accZ[i] * sensorVibration.lowCut;
+				cutX = cutX * (1 - sensorVibration.lowCut) + sensorICM.accX[i] * sensorVibration.lowCut;
+				cutY = cutY * (1 - sensorVibration.lowCut) + sensorICM.accY[i] * sensorVibration.lowCut;
+				cutZ = cutZ * (1 - sensorVibration.lowCut) + sensorICM.accZ[i] * sensorVibration.lowCut;
 			}
 
-			valX = sensorVibration.accX[i] - cutX;
-			valY = sensorVibration.accY[i] - cutY;
-			valZ = sensorVibration.accZ[i] - cutZ;
+			valX = sensorICM.accX[i] - cutX;
+			valY = sensorICM.accY[i] - cutY;
+			valZ = sensorICM.accZ[i] - cutZ;
 
 			sensorVibration.rawX[sensorVibration.count] += sq(valX * SENSOR_VIBRATION_GAIN) / sensorVibration.micro;
 			sensorVibration.rawY[sensorVibration.count] += sq(valY * SENSOR_VIBRATION_GAIN) / sensorVibration.micro;
@@ -660,14 +660,14 @@ void processSensorMagneticUpload() {
 		float avgZ = 0;
 
 		for (int i = 0; i < sensorMagnetic.count; i++) {
-			avgX += sensorMagnetic.rawX[i] / sensorMagnetic.count;
-			avgY += sensorMagnetic.rawY[i] / sensorMagnetic.count;
-			avgZ += sensorMagnetic.rawZ[i] / sensorMagnetic.count;
+			avgX += sensorICM.magX[i] / sensorMagnetic.count;
+			avgY += sensorICM.magY[i] / sensorMagnetic.count;
+			avgZ += sensorICM.magZ[i] / sensorMagnetic.count;
 		}
 
 		avgX = avgX - (sensorMagneticMin.x + sensorMagneticMax.x) / 2;
-		avgY = avgY - (sensorMagneticMin.y + sensorMagneticMax.y) / 2;
-		avgZ = avgZ - (sensorMagneticMin.z + sensorMagneticMax.z) / 2;
+		avgY = -(avgY - (sensorMagneticMin.y + sensorMagneticMax.y) / 2);
+		avgZ = -(avgZ - (sensorMagneticMin.z + sensorMagneticMax.z) / 2);
 
 		if (sensorICM.oriEnabled) {
 			assignAxes(&avgX, &avgY, &avgZ, &sensorMagnetic.avgX, &sensorMagnetic.avgY, &sensorMagnetic.avgZ);
