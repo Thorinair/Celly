@@ -555,7 +555,7 @@ void processSensorTemperatureUpload() {
 
 	// Upload
     int result;
-    varipassWriteFloat(VARIPASS_KEY, VARIPASS_ID_TEMPERATURE, val, &result);    
+    varipassWriteFloat(VARIPASS_KEY, VARIPASS_ID_TEMPERATURE, val, &result, 2);    
     if (result == VARIPASS_RESULT_SUCCESS)
         ledNotifPulse(PULSE_DONE, &ledSensorSHT);
     else
@@ -574,7 +574,7 @@ void processSensorHumidityUpload() {
 
 	// Upload
     int result;
-    varipassWriteFloat(VARIPASS_KEY, VARIPASS_ID_HUMIDITY, val, &result);        
+    varipassWriteFloat(VARIPASS_KEY, VARIPASS_ID_HUMIDITY, val, &result, 2);        
     if (result == VARIPASS_RESULT_SUCCESS)
         ledNotifPulse(PULSE_DONE, &ledSensorSHT);
     else
@@ -606,7 +606,7 @@ void processSensorPressureUpload() {
 
 						// Upload
 						int result;
-				        varipassWriteFloat(VARIPASS_KEY, VARIPASS_ID_PRESSURE, val, &result);				        
+				        varipassWriteFloat(VARIPASS_KEY, VARIPASS_ID_PRESSURE, val, &result, 2);				        
 				        if (result == VARIPASS_RESULT_SUCCESS)
 				            ledNotifPulse(PULSE_DONE, &ledSensorBMP);
 				        else
@@ -633,13 +633,13 @@ void processSensorAirUpload() {
 
 			// Upload
 	        int result;
-	        varipassWriteFloat(VARIPASS_KEY, VARIPASS_ID_CO2, avgCO2, &result);        
+	        varipassWriteFloat(VARIPASS_KEY, VARIPASS_ID_CO2, avgCO2, &result, 4);        
 	        if (result == VARIPASS_RESULT_SUCCESS)
 	            ledNotifPulse(PULSE_DONE, &ledSensorSGP);
 	        else
 	            ledNotifPulse(PULSE_FAIL, &ledSensorSGP);
 
-	        varipassWriteFloat(VARIPASS_KEY, VARIPASS_ID_VOC, avgVOC, &result);        
+	        varipassWriteFloat(VARIPASS_KEY, VARIPASS_ID_VOC, avgVOC, &result, 4);        
 	        if (result == VARIPASS_RESULT_SUCCESS)
 	            ledNotifPulse(PULSE_DONE, &ledSensorSGP);
 	        else
@@ -686,7 +686,7 @@ void processSensorLightUpload() {
 
 		// Upload
         int result;
-        varipassWriteFloat(VARIPASS_KEY, VARIPASS_ID_LIGHT, avg, &result);        
+        varipassWriteFloat(VARIPASS_KEY, VARIPASS_ID_LIGHT, avg, &result, 4);        
         if (result == VARIPASS_RESULT_SUCCESS)
             ledNotifPulse(PULSE_DONE, &ledSensorAPD);
         else
@@ -731,14 +731,14 @@ void processSensorMagneticUpload() {
 
 		// Upload
         int result;
-        varipassWriteFloat(VARIPASS_KEY, VARIPASS_ID_MAGNITUDE, valMag, &result);
+        varipassWriteFloat(VARIPASS_KEY, VARIPASS_ID_MAGNITUDE, valMag, &result, 4);
 
 		if (result == VARIPASS_RESULT_SUCCESS)
 	        ledNotifPulse(PULSE_DONE, &ledSensorICMMag);
         else
             ledNotifPulse(PULSE_FAIL, &ledSensorICMMag);
 
-        varipassWriteFloat(VARIPASS_KEY, VARIPASS_ID_INCLINATION, valInc, &result);
+        varipassWriteFloat(VARIPASS_KEY, VARIPASS_ID_INCLINATION, valInc, &result, 4);
         
         if (result == VARIPASS_RESULT_SUCCESS)
             ledNotifPulse(PULSE_DONE, &ledSensorICMMag);
@@ -777,21 +777,21 @@ void processSensorVibrationUpload() {
 
 		// Upload
         int result;
-        varipassWriteFloat(VARIPASS_KEY, VARIPASS_ID_VIBRATION_X, sensorVibration.avgX, &result);
+        varipassWriteFloat(VARIPASS_KEY, VARIPASS_ID_VIBRATION_X, sensorVibration.avgX, &result, 4);
 
 		if (result == VARIPASS_RESULT_SUCCESS)
 	        ledNotifPulse(PULSE_DONE, &ledSensorICMVib);
         else
             ledNotifPulse(PULSE_FAIL, &ledSensorICMVib);
 
-        varipassWriteFloat(VARIPASS_KEY, VARIPASS_ID_VIBRATION_Y, sensorVibration.avgY, &result);
+        varipassWriteFloat(VARIPASS_KEY, VARIPASS_ID_VIBRATION_Y, sensorVibration.avgY, &result, 4);
 
 		if (result == VARIPASS_RESULT_SUCCESS)
 	        ledNotifPulse(PULSE_DONE, &ledSensorICMVib);
         else
             ledNotifPulse(PULSE_FAIL, &ledSensorICMVib);
 
-        varipassWriteFloat(VARIPASS_KEY, VARIPASS_ID_VIBRATION_Z, sensorVibration.avgZ, &result);
+        varipassWriteFloat(VARIPASS_KEY, VARIPASS_ID_VIBRATION_Z, sensorVibration.avgZ, &result, 4);
 
 		if (result == VARIPASS_RESULT_SUCCESS)
 	        ledNotifPulse(PULSE_DONE, &ledSensorICMVib);
@@ -826,21 +826,21 @@ void processSensorGravityUpload() {
 
 		// Upload
         int result;
-        varipassWriteFloat(VARIPASS_KEY, VARIPASS_ID_GRAVITY_X, sensorGravity.avgX, &result);
+        varipassWriteFloat(VARIPASS_KEY, VARIPASS_ID_GRAVITY_X, sensorGravity.avgX, &result, 4);
 
 		if (result == VARIPASS_RESULT_SUCCESS)
 	        ledNotifPulse(PULSE_DONE, &ledSensorICMGrv);
         else
             ledNotifPulse(PULSE_FAIL, &ledSensorICMGrv);
 
-        varipassWriteFloat(VARIPASS_KEY, VARIPASS_ID_GRAVITY_Y, sensorGravity.avgY, &result);
+        varipassWriteFloat(VARIPASS_KEY, VARIPASS_ID_GRAVITY_Y, sensorGravity.avgY, &result, 4);
 
 		if (result == VARIPASS_RESULT_SUCCESS)
 	        ledNotifPulse(PULSE_DONE, &ledSensorICMGrv);
         else
             ledNotifPulse(PULSE_FAIL, &ledSensorICMGrv);
 
-        varipassWriteFloat(VARIPASS_KEY, VARIPASS_ID_GRAVITY_Z, sensorGravity.avgZ, &result);
+        varipassWriteFloat(VARIPASS_KEY, VARIPASS_ID_GRAVITY_Z, sensorGravity.avgZ, &result, 4);
 
 		if (result == VARIPASS_RESULT_SUCCESS)
 	        ledNotifPulse(PULSE_DONE, &ledSensorICMGrv);
@@ -1181,15 +1181,15 @@ void processButtonBoth() {
     url += "&first_upload=" + String(ticks.firstUpload);
     url += "&tick_sample=" + String(ticks.tickUploadCounter);
     if (!ticks.firstUpload) {
-    	url += "&temperature_raw=" + String(sensorTemperature.last);
-    	url += "&humidity_raw=" + String(sensorHumidity.last);
+    	url += "&temperature_raw=" + String(sensorTemperature.last, 2);
+    	url += "&humidity_raw=" + String(sensorHumidity.last, 2);
     }
 	if (sensorPressure.available && !ticks.firstUpload) {
-	    url += "&pressure_raw=" + String(sensorPressure.last);
+	    url += "&pressure_raw=" + String(sensorPressure.last, 2);
 	}
 	if (sensorAir.available) {
-	    url += "&co2_raw=" + String(sensorAir.lastCO2);
-	    url += "&voc_raw=" + String(sensorAir.lastVOC);
+	    url += "&co2_raw=" + String(sensorAir.lastCO2, 4);
+	    url += "&voc_raw=" + String(sensorAir.lastVOC, 4);
 	    url += "&air_base_enabled=" + String(sensorAir.baseEnabled);
 	    if (sensorAir.baseEnabled) {
 	    	url += "&air_base_next=" + String(sensorAir.baseNext);
@@ -1198,8 +1198,8 @@ void processButtonBoth() {
 		}
 	}
 	if (sensorLight.available) {
-	    url += "&light_raw=" + String(sensorLight.last);
-	    url += "&light_log=" + String(log(sensorLight.last));
+	    url += "&light_raw=" + String(sensorLight.last, 4);
+	    url += "&light_log=" + String(log(sensorLight.last), 4);
 	}
 	if (sensorICM.available) {
 	    url += "&icm_ori_enabled=" + String(sensorICM.oriEnabled);
@@ -1229,23 +1229,31 @@ void processButtonBoth() {
 	    	else
 	    		url += "&icm_ori_z=" + String(sensorICM.oriZ);
 	    }
-	    url += "&magnetic_x_raw=" + String(sensorMagnetic.lastX);
-	    url += "&magnetic_y_raw=" + String(sensorMagnetic.lastY);
-	    url += "&magnetic_z_raw=" + String(sensorMagnetic.lastZ);
+	    url += "&magnetic_x_raw=" + String(sensorMagnetic.lastX, 4);
+	    url += "&magnetic_y_raw=" + String(sensorMagnetic.lastY, 4);
+	    url += "&magnetic_z_raw=" + String(sensorMagnetic.lastZ, 4);
 	    if (!ticks.firstUpload) {
-	    	url += "&magnetic_x_avg=" + String(sensorMagnetic.avgX);
-	    	url += "&magnetic_y_avg=" + String(sensorMagnetic.avgY);
-	    	url += "&magnetic_z_avg=" + String(sensorMagnetic.avgZ);
-		    url += "&magnetic_magnitude=" + String(sensorMagnetic.lastMag);
-		    url += "&magnetic_inclination=" + String(sensorMagnetic.lastInc);
+	    	url += "&magnetic_x_avg=" + String(sensorMagnetic.avgX, 4);
+	    	url += "&magnetic_y_avg=" + String(sensorMagnetic.avgY, 4);
+	    	url += "&magnetic_z_avg=" + String(sensorMagnetic.avgZ, 4);
+		    url += "&magnetic_magnitude=" + String(sensorMagnetic.lastMag, 4);
+		    url += "&magnetic_inclination=" + String(sensorMagnetic.lastInc, 4);
 		}
-	    url += "&vibration_x_raw=" + String(sensorVibration.lastX);
-	    url += "&vibration_y_raw=" + String(sensorVibration.lastY);
-	    url += "&vibration_z_raw=" + String(sensorVibration.lastZ);
+	    url += "&vibration_x_raw=" + String(sensorVibration.lastX, 4);
+	    url += "&vibration_y_raw=" + String(sensorVibration.lastY, 4);
+	    url += "&vibration_z_raw=" + String(sensorVibration.lastZ, 4);
 	    if (!ticks.firstUpload) {
-	    	url += "&vibration_x_avg=" + String(sensorVibration.avgX);
-	    	url += "&vibration_y_avg=" + String(sensorVibration.avgY);
-	    	url += "&vibration_z_avg=" + String(sensorVibration.avgZ);
+	    	url += "&vibration_x_avg=" + String(sensorVibration.avgX, 4);
+	    	url += "&vibration_y_avg=" + String(sensorVibration.avgY, 4);
+	    	url += "&vibration_z_avg=" + String(sensorVibration.avgZ, 4);
+		}
+	    url += "&gravity_x_raw=" + String(sensorGravity.lastX, 4);
+	    url += "&gravity_y_raw=" + String(sensorGravity.lastY, 4);
+	    url += "&gravity_z_raw=" + String(sensorGravity.lastZ, 4);
+	    if (!ticks.firstUpload) {
+	    	url += "&gravity_x_avg=" + String(sensorGravity.avgX, 4);
+	    	url += "&gravity_y_avg=" + String(sensorGravity.avgY, 4);
+	    	url += "&gravity_z_avg=" + String(sensorGravity.avgZ, 4);
 		}
 	}
 
