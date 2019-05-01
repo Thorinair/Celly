@@ -516,11 +516,9 @@ void processSensorGravitySample() {
 	if (sensorICM.available) {
 
 		// Process
-		float cutX, cutY, cutZ;
-		float valX, valY, valZ;
-		sensorGravity.rawX[sensorVibration.count] = 0;
-		sensorGravity.rawY[sensorVibration.count] = 0;
-		sensorGravity.rawZ[sensorVibration.count] = 0;
+		sensorGravity.rawX[sensorGravity.count] = 0;
+		sensorGravity.rawY[sensorGravity.count] = 0;
+		sensorGravity.rawZ[sensorGravity.count] = 0;
 
 		for (int i = 0; i < sensorICM.micro; i++) {
 			sensorGravity.rawX[sensorGravity.count] += sensorICM.accX[i] / sensorICM.micro;
@@ -1425,8 +1423,6 @@ void ledNotifPulse(int pulse, RGB * color) {
 
 		    strip.setPixelColor(1, strip.Color(0, 0, 0)); 
 		    strip.show();  
-
-			delay(LED_NOTIF_PULSE_SEND_DONE);
 		}
 		else if (pulse == PULSE_ERRO) {
 			for (int i = 0; i < 4; i++) {
