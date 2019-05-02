@@ -724,19 +724,19 @@ void processSensorMagneticUpload() {
 		float valMag = sqrt(sq(sensorMagnetic.avgX) + sq(sensorMagnetic.avgY) + sq(sensorMagnetic.avgZ));
 		float valInc = 90 - (acos(sensorMagnetic.avgZ / valMag) * (180 / PI));
 
-		sensorMagnetic.lastMag = valMag;
-		sensorMagnetic.lastInc = valInc;
+		sensorMagnetic.lastMag = valMag + SENSOR_MAGNETIC_OFFSET_MAGNITUDE;
+		sensorMagnetic.lastInc = valInc + SENSOR_MAGNETIC_OFFSET_INCLINATION;
 
 		// Upload
         int result;
-        varipassWriteFloat(VARIPASS_KEY, VARIPASS_ID_MAGNITUDE, valMag, &result, 4);
+        varipassWriteFloat(VARIPASS_KEY, VARIPASS_ID_MAGNITUDE, valMag + SENSOR_MAGNETIC_OFFSET_MAGNITUDE, &result, 4);
 
 		if (result == VARIPASS_RESULT_SUCCESS)
 	        ledNotifPulse(PULSE_DONE, &ledSensorICMMag);
         else
             ledNotifPulse(PULSE_FAIL, &ledSensorICMMag);
 
-        varipassWriteFloat(VARIPASS_KEY, VARIPASS_ID_INCLINATION, valInc, &result, 4);
+        varipassWriteFloat(VARIPASS_KEY, VARIPASS_ID_INCLINATION, valInc + SENSOR_MAGNETIC_OFFSET_INCLINATION, &result, 4);
         
         if (result == VARIPASS_RESULT_SUCCESS)
             ledNotifPulse(PULSE_DONE, &ledSensorICMMag);
