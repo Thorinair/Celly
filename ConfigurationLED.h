@@ -8,7 +8,7 @@
  */
 #define LED_BRIGHT_MIN 8
 #define LED_BRIGHT_MAX 255
-#define LED_LIGHT_MIN  1
+#define LED_LIGHT_MIN  2
 #define LED_LIGHT_MAX  15000
 
 /* Enable the usage of a special color when the light reaches below the LED_LIGHT_MIN value. */
