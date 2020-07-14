@@ -7,19 +7,29 @@
 #include <Adafruit_Sensor.h>
 #include <DPEng_ICM20948_AK09916.h>
 
-#include "ESP8266WiFi.h"
+#include <ESP8266WiFi.h>
 #include <EEPROM.h>
+#include <TwiFi.h>
 #include <VariPass.h>
 
-#include "Shared.h"
-#include "TwiFi.h"
+typedef struct RGB {
+    float r;
+    float g;
+    float b;
+};
+
+typedef struct Vector {
+    float x;
+    float y;
+    float z;
+};
 
 #include "Configuration.h"
+#include "ConfigurationWiFi.h"
+#include "ConfigurationLuna.h"
+#include "ConfigurationVariPass.h"
 #include "ConfigurationLED.h"
 #include "ConfigurationSensors.h"
-#include "ConfigurationVariPass.h"
-#include "ConfigurationLuna.h"
-#include "ConfigurationWiFi.h"
 
 #define max(a,b) ((a) > (b) ? (a) :  (b))
 #define abs(x)   ((x) >  0  ? (x) : -(x))
@@ -238,6 +248,10 @@ void eepromWriteUInt16(int pos, uint16_t val);
 uint16_t eepromReadUInt16(int pos);
 float maxSix(float a, float b, float c, float d, float e, float f);
 int compare(const void* a, const void* b);
+
+void connectAttempt(int idEntry, int attempt);
+void connectSuccess(int idEntry);
+void connectFail(int idEntry);
 
 
 
@@ -1505,6 +1519,27 @@ int compare(const void* a, const void* b) {
 
 
 
+void connectAttempt(int idEntry, int attempt) {
+    if (attempt % 2)
+        strip.setPixelColor(1, strip.Color(ledNotifWiFiSearch.r * intensity, ledNotifWiFiSearch.g * intensity, ledNotifWiFiSearch.b * intensity));
+    else 
+        strip.setPixelColor(1, strip.Color(0, 0, 0));
+    strip.show(); 
+}
+
+void connectSuccess(int idEntry) {
+    strip.setPixelColor(1, strip.Color(0, 0, 0));
+    strip.show();
+}
+
+void connectFail(int idEntry) {
+    strip.setPixelColor(1, strip.Color(ledNotifWiFiFail.r * intensity, ledNotifWiFiFail.g * intensity, ledNotifWiFiFail.b * intensity));
+    strip.show();
+    delay(500);
+    strip.setPixelColor(1, strip.Color(0, 0, 0));
+    strip.show(); 
+}
+
 void setup() {
     Serial.begin(115200);
 
@@ -1514,7 +1549,17 @@ void setup() {
     	setupPins();
     	setupSensors();
     	setupPreConnect();
-		connectWiFi(true);
+        twifiInit(
+            wifis,
+            WIFI_COUNT,
+            WIFI_HOST,
+            WIFI_TIMEOUT,
+            &connectAttempt,
+            &connectSuccess,
+            &connectFail,
+            WIFI_DEBUG
+            );
+        twifiConnect(true);
 		openURL(String(LUNA_URL_BOOT) + "&key=" + String(LUNA_KEY) + "&device=" + String(WIFI_HOST));
 	}
 
@@ -1525,8 +1570,8 @@ void loop() {
 		processTicks();
 		processButtons();
 
-		if (WiFi.status() != WL_CONNECTED) {
-			connectWiFi(true);
+		if (!twifiIsConnected()) {
+			twifiConnect(true);
 	    }
 	}
 	else {

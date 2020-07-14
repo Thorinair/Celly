@@ -53,9 +53,15 @@
 /* Magnetic calibration values. */
 Vector sensorMagneticMin      {-103.35, -26.70, -10.05};
 Vector sensorMagneticMax      {  11.25,  91.35,  87.45};
+
 /* Magnetic sensor offsets. Will be added to final values. */
-#define SENSOR_MAGNETIC_OFFSET_MAGNITUDE   -6.3
-#define SENSOR_MAGNETIC_OFFSET_INCLINATION  1.3
+// Bed Wall
+//#define SENSOR_MAGNETIC_OFFSET_MAGNITUDE   -6.3
+//#define SENSOR_MAGNETIC_OFFSET_INCLINATION  1.3
+// Printer Desk
+#define SENSOR_MAGNETIC_OFFSET_MAGNITUDE    15.5
+#define SENSOR_MAGNETIC_OFFSET_INCLINATION -45.7
+
 /* Write debug info for the sensor. */
 #define SENSOR_MAGNETIC_DEBUG false
 
