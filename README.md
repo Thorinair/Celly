@@ -23,11 +23,16 @@ The sensors installed in Celly are the following:
 
 Celly was primarily designed to look good AND serve the functionality. Inspired by *My Little Pony: Friendship is Magic*'s character Princess Celestia, the device uses an upper RGB LED to signify the power state, flowing in the colors of her mane. The lower RGB LED signifies whether the device is sending data to VariPass. On successful sends, the LED flashes in the colors of the Mane 6. Both LEDs change their intensity depending on the ambient lighting in order to not be too obtrusive during night time.
 
-## Build instruction
+## Build Instruction
+
+Build the project using Arduino IDE using the following settings:
 
 ESP8266 Package: v2.7.4
+
 Board: Generic ESP8266 Module
+
 Upload Config:
+
 - Upload Speed: 115200
 - Crystal Frequency: 26 MHz
 - Debug port: Disabled
